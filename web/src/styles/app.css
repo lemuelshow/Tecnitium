@@ -359,17 +359,20 @@ table.t{width:100%;border-collapse:collapse;min-width:720px}
   .t.cards tfoot td:first-child{font-weight:700}
 
   /* formularios em tela cheia */
-  .modal{padding:0;align-items:stretch}
+  /* bloco (e nao flex esticado): o fundo cresce junto com o conteudo ao rolar */
+  .modal{display:block;padding:0}
   .sheet,.sheet.xl,.sheet.sm{max-width:none;min-height:100dvh;border-radius:0;border:0;display:flex;flex-direction:column}
   .sheet > form{display:flex;flex-direction:column;flex:1}
   .sheet-h{position:sticky;top:0;z-index:5;background:var(--surface);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px}
   .sheet-h h2{font-size:21px}
+  .sheet-h > div:first-child{min-width:0}
+  .sheet-h .actions{flex-wrap:nowrap;flex:none;align-items:center}
   .sheet-b{padding:14px 16px;grid-template-columns:1fr;flex:1}
   .sheet-f{position:sticky;bottom:0;z-index:5;background:var(--surface);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 14px rgba(0,0,0,.06)}
   .sheet-f .btn{flex:1 1 auto;justify-content:center;min-height:46px}
   .sheet-f .left{flex:0 0 auto;margin-right:0}
-  .sheet.sm{min-height:auto;margin-top:auto;border-radius:18px 18px 0 0}
-  .modal:has(.sheet.sm){align-items:flex-end}
+  .sheet.sm{min-height:auto;border-radius:18px 18px 0 0}
+  .modal:has(.sheet.sm){display:flex;flex-direction:column;justify-content:flex-end}
   .os-form .lado{padding:14px 16px}
   .x{min-width:44px;min-height:44px}
 
