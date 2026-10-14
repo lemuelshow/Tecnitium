@@ -33,7 +33,7 @@ O login separa o que cada perfil vê. Como os dados estão no próprio navegador
 
 ## Deploy na Vercel
 
-O `vercel.json` já define tudo: `npm ci`, `npm run build`, pasta `web/dist` e o redirecionamento das rotas para o `index.html`. Basta importar o repositório na Vercel.
+O `vercel.json` já define tudo: `npm ci`, `npm run build` e o redirecionamento das rotas para o `index.html`. O build gera a interface em `web/dist` e copia para `dist/` na raiz, que é a pasta publicada (o padrão da Vercel para Vite). Basta importar o repositório na Vercel, com a raiz do repositório como Root Directory.
 
 O `.npmrc` fixa o registro público do npm (`registry.npmjs.org`), para que a instalação funcione fora da rede interna.
 

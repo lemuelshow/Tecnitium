@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "description": "Tecnitium - sistema para assistencia tecnica (React, dados no navegador)",
-  "workspaces": ["shared", "web"],
+  "workspaces": [
+    "shared",
+    "web"
+  ],
   "scripts": {
     "dev": "npm run dev -w web",
-    "build": "npm run build -w web",
+    "build": "npm run build -w web && node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('web/dist','dist',{recursive:true})\"",
     "preview": "npm run preview -w web"
   }
 }
