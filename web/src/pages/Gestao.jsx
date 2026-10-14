@@ -56,30 +56,30 @@ export function Comissoes() {
             <div className="kpi"><span className="l">Total a pagar</span><span className="v" style={{ color: 'var(--accent-strong)' }}>{brl(tot('total'))}</span></div>
           </div>
           <div className="tablewrap">
-            <table className="t">
+            <table className="t cards">
               <thead><tr><th>Técnico</th><th>Regime</th><th className="num">OS</th><th className="num">Peças</th><th className="num">Mão de obra</th><th className="num">Com. peças</th><th className="num">Com. mão de obra</th><th className="num">Salário</th><th className="num">Total</th></tr></thead>
               <tbody>
                 {R.tecnicos.map((t) => (
                   <Fragment key={t.id}>
                     <tr className="click" onClick={() => setAberto(aberto === t.id ? null : t.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setAberto(aberto === t.id ? null : t.id)}>
-                      <td><strong>{t.nome}</strong><span className="sub">{aberto === t.id ? 'ocultar OS' : `ver ${t.os} OS`}</span></td>
-                      <td><Pill tom={t.regime === 'Salário fixo' ? 'info' : 'ready'}>{t.regime}</Pill><span className="sub">{num(t.percPeca, 1)}% peças{t.regime === 'Comissão' ? ` · ${num(t.percServico, 1)}% mão de obra` : ''}</span></td>
-                      <td className="num">{t.os}</td><td className="num">{brl(t.pecas)}</td><td className="num">{brl(t.servicos)}</td>
-                      <td className="num">{brl(t.comissaoPeca)}</td><td className="num">{t.regime === 'Salário fixo' ? <span className="sub">não recebe</span> : brl(t.comissaoServico)}</td>
-                      <td className="num">{t.salario ? brl(t.salario) : '—'}</td><td className="num"><strong>{brl(t.total)}</strong></td>
+                      <td><span className="cv"><strong>{t.nome}</strong><span className="sub">{aberto === t.id ? 'ocultar OS' : `ver ${t.os} OS`}</span></span></td>
+                      <td data-label="Regime"><span className="cv"><Pill tom={t.regime === 'Salário fixo' ? 'info' : 'ready'}>{t.regime}</Pill><span className="sub">{num(t.percPeca, 1)}% peças{t.regime === 'Comissão' ? ` · ${num(t.percServico, 1)}% mão de obra` : ''}</span></span></td>
+                      <td className="num" data-label="OS">{t.os}</td><td className="num" data-label="Peças">{brl(t.pecas)}</td><td className="num" data-label="Mão de obra">{brl(t.servicos)}</td>
+                      <td className="num" data-label="Com. peças">{brl(t.comissaoPeca)}</td><td className="num" data-label="Com. mão de obra">{t.regime === 'Salário fixo' ? <span className="sub">não recebe</span> : brl(t.comissaoServico)}</td>
+                      <td className="num" data-label="Salário">{t.salario ? brl(t.salario) : '—'}</td><td className="num" data-label="Total a pagar"><strong>{brl(t.total)}</strong></td>
                     </tr>
                     {aberto === t.id ? t.detalhes.map((d) => (
                       <tr key={d.id} style={{ background: 'var(--surface-2)' }}>
-                        <td colSpan={2} style={{ paddingLeft: 28 }}><span className="os-num">{d.numero}</span> · {d.cliente}<span className="sub">{d.aparelho} · retirada {fd(d.dataEntrega)}</span></td>
-                        <td /><td className="num">{brl(d.pecas)}</td><td className="num">{brl(d.servicos)}</td>
-                        <td className="num">{brl(d.comissaoPeca)}<span className="sub">{num(d.percPeca, 1)}%</span></td>
-                        <td className="num">{brl(d.comissaoServico)}<span className="sub">{d.regime === 'Salário fixo' ? 'fixo' : `${num(d.percServico, 1)}%`}</span></td><td /><td className="num">{brl(d.comissaoPeca + d.comissaoServico)}</td>
+                        <td colSpan={2} style={{ paddingLeft: 28 }}><span className="cv"><span className="os-num">{d.numero}</span> · {d.cliente}<span className="sub">{d.aparelho} · retirada {fd(d.dataEntrega)}</span></span></td>
+                        <td /><td className="num" data-label="Peças">{brl(d.pecas)}</td><td className="num" data-label="Mão de obra">{brl(d.servicos)}</td>
+                        <td className="num" data-label="Com. peças"><span className="cv">{brl(d.comissaoPeca)}<span className="sub">{num(d.percPeca, 1)}%</span></span></td>
+                        <td className="num" data-label="Com. mão de obra"><span className="cv">{brl(d.comissaoServico)}<span className="sub">{d.regime === 'Salário fixo' ? 'fixo' : `${num(d.percServico, 1)}%`}</span></span></td><td /><td className="num" data-label="Comissão">{brl(d.comissaoPeca + d.comissaoServico)}</td>
                       </tr>
                     )) : null}
                   </Fragment>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={2}>Total</td><td className="num">{tot('os')}</td><td className="num">{brl(tot('pecas'))}</td><td className="num">{brl(tot('servicos'))}</td><td className="num">{brl(tot('comissaoPeca'))}</td><td className="num">{brl(tot('comissaoServico'))}</td><td className="num">{brl(tot('salario'))}</td><td className="num">{brl(tot('total'))}</td></tr></tfoot>
+              <tfoot><tr><td colSpan={2}>Total</td><td className="num" data-label="OS">{tot('os')}</td><td className="num" data-label="Peças">{brl(tot('pecas'))}</td><td className="num" data-label="Mão de obra">{brl(tot('servicos'))}</td><td className="num" data-label="Com. peças">{brl(tot('comissaoPeca'))}</td><td className="num" data-label="Com. mão de obra">{brl(tot('comissaoServico'))}</td><td className="num" data-label="Salário">{brl(tot('salario'))}</td><td className="num" data-label="Total a pagar">{brl(tot('total'))}</td></tr></tfoot>
             </table>
           </div>
         </>

@@ -65,12 +65,12 @@ export default function ListPage({ ent, abas, antes, acoesExtras, cabecalho = tr
                 : <><strong>Nenhum {ent.um} cadastrad{ent.fem ? 'a' : 'o'} ainda.</strong>{podeEscrever ? `Use “${ent.novo}” para incluir.` : ''}</>}
             </div>
           ) : (
-            <table className="t">
+            <table className="t cards">
               <thead><tr>{ent.colunas.map((c) => <th key={c.l} className={c.c || ''}>{c.l}</th>)}</tr></thead>
               <tbody>
                 {visiveis.map((r) => (
                   <tr key={r.id} className="click" tabIndex={0} onClick={() => abrir(r)} onKeyDown={(e) => e.key === 'Enter' && abrir(r)}>
-                    {ent.colunas.map((c) => <td key={c.l} className={c.c || ''}>{c.r(r, L, abrir, podeEscrever)}</td>)}
+                    {ent.colunas.map((c) => <td key={c.l} className={c.c || ''} data-label={c.l}><span className="cv">{c.r(r, L, abrir, podeEscrever)}</span></td>)}
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { OS_EM_BANCADA, OS_PARA_RETIRAR, hoje } from '@tecnitium/shared';
 import { useAuth, PERFIS } from '../lib/auth.jsx';
 import { useApoio } from '../lib/dados.js';
@@ -38,15 +38,45 @@ const MENU = [
   ['sep', 'Equipe', ['ADMIN']], ['tecnicos', 'Técnicos', ['ADMIN']], ['atendentes', 'Atendentes', ['ADMIN']], ['usuarios', 'Usuários', ['ADMIN']], ['configuracoes', 'Configurações', ['ADMIN']],
 ];
 
+// Botao "Instalar app": Android/Chrome usam o evento beforeinstallprompt; no iPhone mostra a instrucao.
+let promptGuardado = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); promptGuardado = e; window.dispatchEvent(new Event('tecnitium:instalavel')); });
+function useInstalar() {
+  const [pode, setPode] = useState(!!promptGuardado);
+  useEffect(() => {
+    const f = () => setPode(!!promptGuardado);
+    window.addEventListener('tecnitium:instalavel', f);
+    window.addEventListener('appinstalled', () => { promptGuardado = null; setPode(false); });
+    return () => window.removeEventListener('tecnitium:instalavel', f);
+  }, []);
+  const instalado = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !instalado;
+  const instalar = async () => { if (!promptGuardado) return; promptGuardado.prompt(); await promptGuardado.userChoice.catch(() => null); promptGuardado = null; setPode(false); };
+  return { pode: pode && !instalado, ios, instalar };
+}
+
+const Icone = ({ k }) => <svg viewBox="0 0 24 24" aria-hidden="true">{IC[k]}</svg>;
+const corBadge = (b) => ({ background: `var(--${b[1] === 'ok' ? 'c4' : b[1]})`, color: '#111' });
+
 export default function Layout() {
   const { usuario, sair, pode } = useAuth();
   const L = useApoio();
   const [trocarSenha, setTrocarSenha] = useState(false);
+  const [mais, setMais] = useState(false);
+  const inst = useInstalar();
+  const local = useLocation();
+  useEffect(() => { setMais(false); window.scrollTo(0, 0); }, [local.pathname]);
   const h = hoje();
   const atrasadas = L.ordens.filter((o) => OS_EM_BANCADA.includes(o.status) && o.prazo && o.prazo < h).length;
   const prontas = L.ordens.filter((o) => OS_PARA_RETIRAR.includes(o.status)).length;
   const repor = L.pecas.filter((p) => p.ativo && p.quantidade <= p.minimo).length;
   const badge = { ordens: atrasadas ? [atrasadas, 'bad', 'OS atrasadas'] : prontas ? [prontas, 'ok', 'prontas para retirar'] : null, estoque: repor ? [repor, 'warn', 'peças para repor'] : null };
+  const itens = MENU.filter(([k, , perfis]) => k !== 'sep' && (!perfis || pode(perfis)));
+  const NAS_ABAS = ['painel', 'ordens', 'clientes'];
+  const noMais = itens.filter(([k]) => !NAS_ABAS.includes(k));
+  const maisAtivo = noMais.some(([k]) => local.pathname.startsWith('/' + k));
+  const iniciais = (usuario?.nome || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+
   return (
     <div className="app">
       <aside className="side">
@@ -58,18 +88,56 @@ export default function Layout() {
             const b = badge[k];
             return (
               <NavLink key={k} to={k === 'painel' ? '/' : '/' + k} end={k === 'painel'}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">{IC[k]}</svg><span>{rotulo}</span>
-                {b ? <span className="badge" title={b[2]} style={{ background: `var(--${b[1] === 'ok' ? 'c4' : b[1]})`, color: '#111' }}>{b[0]}</span> : null}
+                <Icone k={k} /><span>{rotulo}</span>
+                {b ? <span className="badge" title={b[2]} style={corBadge(b)}>{b[0]}</span> : null}
               </NavLink>
             );
           })}
         </nav>
         <div className="side-foot">
+          {inst.pode ? <button onClick={inst.instalar}>Instalar como aplicativo</button> : null}
           <span><strong>{usuario?.nome}</strong><br />{PERFIS[usuario?.perfil]}</span>
           <div className="row"><button onClick={() => setTrocarSenha(true)}>Trocar senha</button><button onClick={sair}>Sair</button></div>
         </div>
       </aside>
+
+      {/* celular: barra superior */}
+      <header className="appbar">
+        <NavLink className="brand" to="/" aria-label="Tecnitium, ir para o painel"><Marca /></NavLink>
+        <div className="acoes">
+          {inst.pode ? <button onClick={inst.instalar}>Instalar</button> : null}
+          <button className="avatar" onClick={() => setMais(true)} aria-label="Menu da conta">{iniciais}</button>
+        </div>
+      </header>
+
       <main className="main"><Outlet /></main>
+
+      {/* celular: abas inferiores */}
+      <nav className="tabbar" aria-label="Navegação">
+        <NavLink to="/" end><Icone k="painel" />Painel</NavLink>
+        <NavLink to="/ordens">{badge.ordens ? <span className="badge" style={corBadge(badge.ordens)}>{badge.ordens[0]}</span> : null}<Icone k="ordens" />OS</NavLink>
+        <Link className="novo" to="/ordens?nova=1" aria-label="Nova ordem de serviço"><span className="circ"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></span>Nova OS</Link>
+        <NavLink to="/clientes"><Icone k="clientes" />Clientes</NavLink>
+        <button className={maisAtivo ? 'active' : ''} onClick={() => setMais(true)}>{badge.estoque ? <span className="badge" style={corBadge(badge.estoque)}>{badge.estoque[0]}</span> : null}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>Mais</button>
+      </nav>
+
+      {mais ? (
+        <>
+          <div className="mais-fundo" onClick={() => setMais(false)} />
+          <div className="mais" role="dialog" aria-modal="true" aria-label="Mais opções">
+            <div className="alca" />
+            <div className="quem"><span><strong>{usuario?.nome}</strong><span className="sub">{PERFIS[usuario?.perfil]}</span></span><button className="x" onClick={() => setMais(false)} aria-label="Fechar">×</button></div>
+            <nav aria-label="Mais seções">
+              {noMais.map(([k, rotulo]) => (
+                <NavLink key={k} to={'/' + k}><Icone k={k} />{rotulo}{badge[k] ? <span className="badge" style={{ ...corBadge(badge[k]), position: 'static', borderRadius: 8, padding: '0 6px', fontSize: 11 }}>{badge[k][0]}</span> : null}</NavLink>
+              ))}
+            </nav>
+            {inst.pode ? <div className="regra" style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span style={{ flex: 1 }}>Instale o Tecnitium na tela inicial para abrir como aplicativo, em tela cheia e sem internet.</span><button className="btn primary" onClick={inst.instalar}>Instalar</button></div> : null}
+            {inst.ios ? <div className="regra">Para instalar no iPhone: toque em <strong>Compartilhar</strong> no Safari e depois em <strong>Adicionar à Tela de Início</strong>.</div> : null}
+            <div className="linha"><button className="btn" onClick={() => { setMais(false); setTrocarSenha(true); }}>Trocar senha</button><button className="btn" onClick={sair}>Sair</button></div>
+          </div>
+        </>
+      ) : null}
       {trocarSenha ? <TrocarSenha onFechar={() => setTrocarSenha(false)} /> : null}
     </div>
   );

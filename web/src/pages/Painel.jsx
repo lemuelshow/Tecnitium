@@ -17,7 +17,7 @@ export default function Painel() {
   const hojeTxt = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
   const abrir = (id) => ir('/ordens?os=' + id);
 
-  const cab = <Cabecalho sobre={`${usuario?.perfil === 'TECNICO' ? 'Minha bancada' : 'Visão geral'} · ${hojeTxt}`} titulo="Painel"><button className="btn primary" onClick={() => ir('/ordens?nova=1')}><IconeMais />Nova OS</button></Cabecalho>;
+  const cab = <Cabecalho sobre={`${usuario?.perfil === 'TECNICO' ? 'Minha bancada' : 'Visão geral'} · ${hojeTxt}`} titulo="Painel"><button className="btn primary so-desktop" onClick={() => ir('/ordens?nova=1')}><IconeMais />Nova OS</button></Cabecalho>;
   if (error) return <>{cab}<div className="panel">Não foi possível carregar o painel: {error.message}</div></>;
   if (!P) return <>{cab}<div className="empty"><strong>Carregando…</strong></div></>;
   const C = P.contadores;

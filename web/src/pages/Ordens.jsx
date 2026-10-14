@@ -65,7 +65,7 @@ export default function Ordens() {
   return (
     <>
       <Cabecalho sobre="Entrada, bancada e retirada" titulo="Ordens de serviço">
-        <button className="btn primary" onClick={() => setAberta({ registro: null })}><IconeMais />Nova OS</button>
+        <button className="btn primary so-desktop" onClick={() => setAberta({ registro: null })}><IconeMais />Nova OS</button>
       </Cabecalho>
       <div className="board" role="group" aria-label="Filtrar ordens">
         {FILTROS.map(([k, rotulo, f]) => (
@@ -84,20 +84,20 @@ export default function Ordens() {
         {L.carregando ? <div className="empty"><strong>Carregando…</strong></div> : !linhas.length ? (
           <div className="empty"><strong>Nenhuma OS neste filtro.</strong>{L.ordens.length ? 'Mude o filtro ou a busca.' : 'Use “Nova OS” para registrar o primeiro aparelho.'}</div>
         ) : (
-          <table className="t">
+          <table className="t cards">
             <thead><tr><th>OS</th><th>Cliente</th><th>Aparelho</th><th>Técnico</th><th>Prazo</th><th className="num">Total</th><th>Situação</th></tr></thead>
             <tbody>
               {linhas.map((o) => {
                 const c = L.clientesPorId[o.clienteId], a = L.aparelhosPorId[o.aparelhoId], t = totaisOS(o), s = situacaoPrazo(o, cfg);
                 return (
                   <tr key={o.id} className="click" tabIndex={0} onClick={() => setAberta({ registro: o })} onKeyDown={(e) => e.key === 'Enter' && setAberta({ registro: o })}>
-                    <td className="nw"><strong className="os-num">{numeroOS(o.numero)}</strong><span className="sub">{fdt(o.entrada)}</span></td>
-                    <td><strong>{c?.nome}</strong><span className="sub nw">{c?.whatsapp || c?.telefone}</span></td>
-                    <td>{a ? `${a.marca} ${a.modelo}` : '—'}<span className="sub">{(o.defeito || '').slice(0, 48)}{(o.defeito || '').length > 48 ? '…' : ''}</span></td>
-                    <td>{L.tecnicosPorId[o.tecnicoId]?.nome?.split(' ')[0] || <span className="sub">a definir</span>}</td>
-                    <td className="nw">{o.status === 'Entregue' ? <><span>{fd(o.dataEntrega)}</span><span className="sub">retirada</span></> : <>{fd(o.prazo)}{s ? <span className={`sub txt-${s.tom === 'ok' ? '' : s.tom}`}>{s.texto}</span> : null}</>}</td>
-                    <td className="num">{brl(t.total)}{t.saldo > 0.009 && o.status !== 'Cancelada' ? <span className="sub txt-warn">falta {brl(t.saldo)}</span> : null}</td>
-                    <td>{o.prioridade === 'Urgente' && OS_EM_BANCADA.includes(o.status) ? <><Pill tom="bad">Urgente</Pill> </> : null}<Pill tom={TOM_OS[o.status]}>{o.status}</Pill></td>
+                    <td className="nw" data-label="OS"><span className="cv" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><span><strong className="os-num">{numeroOS(o.numero)}</strong><span className="sub">{fdt(o.entrada)}</span></span><span className="so-celular">{o.prioridade === 'Urgente' && OS_EM_BANCADA.includes(o.status) ? <Pill tom="bad">Urgente</Pill> : null}<Pill tom={TOM_OS[o.status]}>{o.status}</Pill></span></span></td>
+                    <td data-label="Cliente"><span className="cv"><strong>{c?.nome}</strong><span className="sub nw">{c?.whatsapp || c?.telefone}</span></span></td>
+                    <td data-label="Aparelho"><span className="cv">{a ? `${a.marca} ${a.modelo}` : '—'}<span className="sub">{(o.defeito || '').slice(0, 48)}{(o.defeito || '').length > 48 ? '…' : ''}</span></span></td>
+                    <td data-label="Técnico"><span className="cv">{L.tecnicosPorId[o.tecnicoId]?.nome?.split(' ')[0] || <span className="sub">a definir</span>}</span></td>
+                    <td className="nw" data-label={o.status === 'Entregue' ? 'Retirada' : 'Prazo'}><span className="cv">{o.status === 'Entregue' ? <><span>{fd(o.dataEntrega)}</span><span className="sub so-desktop-inline">retirada</span></> : <>{fd(o.prazo)}{s ? <span className={`sub txt-${s.tom === 'ok' ? '' : s.tom}`}>{s.texto}</span> : null}</>}</span></td>
+                    <td className="num" data-label="Total"><span className="cv">{brl(t.total)}{t.saldo > 0.009 && o.status !== 'Cancelada' ? <span className="sub txt-warn">falta {brl(t.saldo)}</span> : null}</span></td>
+                    <td className="so-desktop-cell" data-label="Situação"><span className="cv">{o.prioridade === 'Urgente' && OS_EM_BANCADA.includes(o.status) ? <><Pill tom="bad">Urgente</Pill> </> : null}<Pill tom={TOM_OS[o.status]}>{o.status}</Pill></span></td>
                   </tr>
                 );
               })}

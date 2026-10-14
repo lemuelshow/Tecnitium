@@ -12,6 +12,14 @@ Cada navegador tem os seus próprios dados. Em **Configurações → Dados deste
 
 Tecnologias: React 18, Vite, React Router, TanStack Query e Recharts.
 
+## No celular: funciona como aplicativo
+
+- **Instalável (PWA):** no Android/Chrome aparece o botão **Instalar** (barra superior e menu **Mais**); no iPhone, Safari → Compartilhar → **Adicionar à Tela de Início**. Abre em tela cheia, com ícone próprio e atalhos (Nova OS, Ordens de serviço, Estoque) ao segurar o ícone.
+- **Funciona sem internet:** o service worker (`web/public/sw.js`) guarda o app no aparelho e os dados já estão no navegador.
+- **Navegação de aplicativo:** abas inferiores (Painel, OS, **Nova OS**, Clientes, Mais), listas em cartões, formulários em tela cheia com o botão de salvar sempre visível, câmera para as fotos e respeito ao entalhe e à barra do sistema.
+
+Para publicar uma versão nova do app instalado, altere `VERSAO` em `web/public/sw.js`; o app atualiza sozinho na próxima abertura.
+
 ## Como rodar
 
 ```bash

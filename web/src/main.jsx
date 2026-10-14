@@ -80,6 +80,16 @@ function Rotas() {
   );
 }
 
+// Aplicativo instalavel (PWA): o service worker guarda o app para abrir sem internet.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    const tinhaControle = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // Versao nova publicada: recarrega uma vez para usar os arquivos novos.
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (tinhaControle) window.location.reload(); });
+  });
+}
+
 // Outra aba gravou dados: recarrega as telas desta aba.
 window.addEventListener('storage', (e) => { if (e.key === 'tecnitium:banco:v1') qc.invalidateQueries(); });
 
