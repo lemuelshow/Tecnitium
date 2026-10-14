@@ -1,0 +1,8 @@
+{
+  "name": "@tecnitium/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "regras.js",
+  "exports": { ".": "./regras.js" }
+}

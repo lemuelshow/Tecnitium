@@ -1,0 +1,17 @@
+{
+  "name": "tecnitium",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tecnitium - sistema para assistencia tecnica (Node.js + React)",
+  "workspaces": ["shared", "server", "web"],
+  "scripts": {
+    "setup": "npm install && npm run db:migrate -w server && npm run seed:demo -w server",
+    "setup:vazio": "npm install && npm run db:migrate -w server && npm run seed -w server",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
