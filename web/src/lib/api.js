@@ -1,3 +1,6 @@
+import { servidor } from '../local/servidor.js';
+import { HttpError } from '../local/erros.js';
+
 const CHAVE = 'tecnitium:sessao';
 
 export function lerSessao() {
@@ -18,38 +21,27 @@ export class ErroApi extends Error {
 let aoExpirar = () => {};
 export const definirAoExpirar = (fn) => { aoExpirar = fn; };
 
+// Sem servidor: as chamadas vao para o "servidor local" (src/local), que guarda tudo no navegador.
 export async function api(caminho, { method = 'GET', body } = {}) {
-  const sessao = lerSessao();
-  let resp;
   try {
-    resp = await fetch('/api' + caminho, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...(sessao?.token ? { Authorization: `Bearer ${sessao.token}` } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ErroApi(0, { erro: 'Sem conexão com o servidor. Verifique se a API está rodando.' });
+    return await servidor(method, caminho, body === undefined ? undefined : body);
+  } catch (e) {
+    if (e instanceof HttpError) {
+      if (e.status === 401 && caminho !== '/auth/login') aoExpirar();
+      throw new ErroApi(e.status, { erro: e.message, campo: e.campo });
+    }
+    if (e?.code === 'P2002') throw new ErroApi(409, { erro: 'Já existe um registro com este valor.', campo: e.meta?.target?.[0] });
+    if (e?.code === 'P2025') throw new ErroApi(404, { erro: 'Registro não encontrado.' });
+    console.error(e);
+    throw new ErroApi(500, { erro: 'Erro inesperado ao gravar no navegador. Recarregue a página e tente de novo.' });
   }
-  if (resp.status === 204) return null;
-  const corpo = await resp.json().catch(() => null);
-  if (resp.status === 401 && caminho !== '/auth/login') aoExpirar();
-  if (!resp.ok) throw new ErroApi(resp.status, corpo);
-  return corpo;
 }
 
-// Envio de arquivo (multipart) com o token da sessao.
-export async function enviarArquivo(caminho, campos) {
-  const sessao = lerSessao();
-  const fd = new FormData();
-  for (const [k, v] of Object.entries(campos)) if (v != null) fd.append(k, v);
-  const resp = await fetch('/api' + caminho, { method: 'POST', headers: sessao?.token ? { Authorization: `Bearer ${sessao.token}` } : {}, body: fd });
-  const corpo = await resp.json().catch(() => null);
-  if (!resp.ok) throw new ErroApi(resp.status, corpo);
-  return corpo;
-}
+// Envio de foto: o arquivo vai direto para o armazenamento local (IndexedDB).
+export const enviarArquivo = (caminho, campos) => api(caminho, { method: 'POST', body: campos });
 
-// Reduz a foto para no maximo 1600 px (JPEG) antes de enviar; se o navegador nao conseguir ler, envia o original.
-export async function comprimirImagem(arquivo, max = 1600) {
+// Reduz a foto para no maximo 1280 px (JPEG) antes de enviar; se o navegador nao conseguir ler, envia o original.
+export async function comprimirImagem(arquivo, max = 1280) {
   try {
     const bmp = await createImageBitmap(arquivo);
     const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));

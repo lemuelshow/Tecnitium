@@ -1,13 +1,11 @@
-// Recursos da API: campos aceitos, permissoes e regras de negocio.
-// As regras rodam dentro da mesma transacao da gravacao (ctx.tx).
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Recursos do back-end local: campos aceitos, permissoes e regras de negocio.
+// As regras rodam dentro da mesma transacao da gravacao (ctx.tx); se algo falhar, nada e gravado.
 import {
   OS_STATUS, OS_PARA_RETIRAR, TIPOS_APARELHO, FORMAS_PAGAMENTO,
   hoje, isoDateTime, somarDias, calcularComissao, pecasDaOS, numeroOS,
 } from '@tecnitium/shared';
-import { falha } from '../lib/http.js';
+import { falha } from './erros.js';
+import { apagarFotosDaOS } from './fotos.js';
 
 const txt = (rotulo, extra = {}) => ({ tipo: 'string', rotulo, ...extra });
 const int = (rotulo, extra = {}) => ({ tipo: 'int', rotulo, ...extra });
@@ -21,7 +19,6 @@ const BALCAO = ['ADMIN', 'ATENDENTE'];
 const TODOS = ['ADMIN', 'ATENDENTE', 'TECNICO'];
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
-export const UPLOADS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../uploads');
 
 export async function lerConfig(tx) {
   return (await tx.configuracao.findUnique({ where: { id: 1 } })) || (await tx.configuracao.create({ data: { id: 1 } }));
@@ -211,9 +208,7 @@ export const recursos = {
     async aoExcluir(os, { tx }) {
       await movimentarEstoque(tx, os, pecasDaOS(os), {});
       await tx.movEstoque.updateMany({ where: { osId: os.id }, data: { osId: null } });
-      const fotos = await tx.fotoOS.findMany({ where: { osId: os.id } });
-      for (const f of fotos) fs.rm(path.join(UPLOADS, f.arquivo), { force: true }, () => {});
-      await tx.fotoOS.deleteMany({ where: { osId: os.id } });
+      await apagarFotosDaOS(os.id);
     },
   },
 };

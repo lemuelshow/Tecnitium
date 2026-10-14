@@ -331,7 +331,7 @@ export function OSForm({ registro, L, cfg, onFechar }) {
                 <h3>Fotos do aparelho</h3>
                 <div className="fotos" style={{ marginTop: 8 }}>
                   {fotos.map((f) => (
-                    <figure key={f.id}><img src={'/uploads/' + f.arquivo} alt="Foto do aparelho" onClick={() => setZoom('/uploads/' + f.arquivo)} />
+                    <figure key={f.id}><img src={f.url} alt="Foto do aparelho" onClick={() => setZoom(f.url)} />
                       {pode(['ADMIN', 'ATENDENTE']) ? <button type="button" className="rm" aria-label="Remover foto" onClick={() => removerFoto(f)}>×</button> : null}</figure>
                   ))}
                   {pendentes.map((p, i) => (

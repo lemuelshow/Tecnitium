@@ -54,7 +54,7 @@ export default function Imprimir() {
           <div className="blk"><h4>Prazos</h4>Previsão de entrega: <strong>{fd(os.prazo)}</strong><br />Técnico: {tec?.nome || 'a definir'}{entregue ? <><br />Retirado em {fd(os.dataEntrega)}{os.retiradoPor ? ` por ${os.retiradoPor}` : ''}</> : null}</div>
           <div className="blk"><h4>Garantia</h4>{os.garantiaDias ? <>{os.garantiaDias} dias{entregue ? `, até ${fd(somarDias(os.dataEntrega, os.garantiaDias))}` : ' a partir da retirada'}, sobre o serviço executado e as peças trocadas.</> : 'Sem garantia.'}</div>
         </div>
-        {fotos.length ? <div className="blk"><h4>Fotos do aparelho</h4><div className="fotos-p">{fotos.map((f) => <img key={f.id} src={'/uploads/' + f.arquivo} alt="Foto do aparelho" />)}</div></div> : null}
+        {fotos.length ? <div className="blk"><h4>Fotos do aparelho</h4><div className="fotos-p">{fotos.map((f) => <img key={f.id} src={f.url} alt="Foto do aparelho" />)}</div></div> : null}
         {cfg.termos ? <div className="blk"><h4>Termos</h4><div className="termos">{cfg.termos}</div></div> : null}
         <div className="ass"><div>{cfg.nomeEmpresa}</div><div>{cli.nome}{entregue ? ' (retirada)' : ' (entrega do aparelho)'}</div></div>
       </div>

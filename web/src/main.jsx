@@ -43,7 +43,8 @@ function Login() {
           <div className="f"><label htmlFor="senha">Senha</label><input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" required /></div>
           <button className="btn primary" style={{ justifyContent: 'center', padding: '10px 14px' }} disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
           <div className="demo-users">
-            Acessos iniciais (senha <code>tecnitium</code>):<br />
+            Versão de demonstração: os dados ficam salvos neste navegador e já vêm com exemplos.<br /><br />
+            Acessos (senha <code>tecnitium</code>):<br />
             <code>admin@tecnitium.com.br</code> · administrador<br />
             <code>atendimento@tecnitium.com.br</code> · atendente<br />
             <code>tecnico@tecnitium.com.br</code> · técnico
@@ -78,6 +79,9 @@ function Rotas() {
     </Routes>
   );
 }
+
+// Outra aba gravou dados: recarrega as telas desta aba.
+window.addEventListener('storage', (e) => { if (e.key === 'tecnitium:banco:v1') qc.invalidateQueries(); });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

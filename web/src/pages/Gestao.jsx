@@ -126,6 +126,61 @@ export function Configuracoes() {
         </div>
         <div className="actions" style={{ marginTop: 16, justifyContent: 'flex-end' }}><button className="btn primary" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar configurações'}</button></div>
       </form>
+      <Dados />
     </>
+  );
+}
+
+// Backup e restauracao: sem servidor, os dados vivem neste navegador.
+function Dados() {
+  const qc = useQueryClient();
+  const avisar = useAviso();
+  const [confirmar, setConfirmar] = useState(null); // 'exemplos' | 'limpar'
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState('');
+  const recarregar = () => { qc.clear(); window.location.assign('/'); };
+
+  async function exportar() {
+    const dados = await api('/dados/backup');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 1)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `tecnitium-backup-${isoDate()}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    avisar('Backup baixado.');
+  }
+  async function importar(arquivo) {
+    setErro('');
+    try {
+      const dados = JSON.parse(await arquivo.text());
+      await api('/dados/restaurar', { method: 'POST', body: { dados } });
+      avisar('Backup restaurado.');
+      recarregar();
+    } catch (ex) { setErro(ex instanceof SyntaxError ? 'O arquivo não é um backup válido do Tecnitium.' : ex.message); }
+  }
+  async function executar() {
+    setOcupado(true);
+    try { await api('/dados/' + confirmar, { method: 'POST' }); recarregar(); }
+    catch (ex) { setErro(ex.message); setOcupado(false); setConfirmar(null); }
+  }
+
+  return (
+    <div className="panel" style={{ maxWidth: 860, marginTop: 16 }}>
+      <div className="panel-h"><h2>Dados deste navegador</h2></div>
+      <p className="sub" style={{ marginBottom: 12 }}>Esta versão não tem servidor: cadastros e OS ficam no armazenamento local deste navegador, e as fotos no banco local dele. Outro computador ou outro navegador começa com os dados de exemplo. Limpar os dados do navegador apaga tudo, então baixe um backup com frequência. O backup não inclui as fotos.</p>
+      {erro ? <div className="form-err" style={{ marginBottom: 12 }}>{erro}</div> : null}
+      {confirmar ? (
+        <div className="regra" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: 'var(--warn-bg)' }}>
+          <span style={{ flex: '1 1 300px' }}>{confirmar === 'exemplos' ? 'Apagar tudo e carregar de novo os dados de exemplo?' : 'Apagar todos os cadastros, OS, estoque e fotos? Ficam só a configuração e os usuários iniciais.'} Esta ação não pode ser desfeita.</span>
+          <button className="btn" onClick={() => setConfirmar(null)} disabled={ocupado}>Cancelar</button>
+          <button className="btn danger" onClick={executar} disabled={ocupado}>{ocupado ? 'Apagando…' : 'Apagar'}</button>
+        </div>
+      ) : null}
+      <div className="actions">
+        <button className="btn" onClick={exportar}><IconeBaixar />Baixar backup</button>
+        <label className="btn" style={{ cursor: 'pointer' }}>Restaurar backup<input type="file" accept="application/json,.json" hidden onChange={(e) => { if (e.target.files[0]) importar(e.target.files[0]); e.target.value = ''; }} /></label>
+        <button className="btn" onClick={() => setConfirmar('exemplos')}>Recarregar dados de exemplo</button>
+        <button className="btn danger" onClick={() => setConfirmar('limpar')}>Começar do zero</button>
+      </div>
+    </div>
   );
 }

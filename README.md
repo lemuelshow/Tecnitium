@@ -2,37 +2,40 @@
 
 Sistema para assistência técnica: ordens de serviço com fotos, clientes, aparelhos, técnicos, atendentes, estoque de peças, alertas de prazo e de retirada, e comissão dos técnicos.
 
-- **API:** Node.js 22, Express, Prisma (SQLite por padrão, troca para PostgreSQL com uma linha) e Multer para as fotos
-- **Interface:** React 18, Vite, React Router, TanStack Query e Recharts
-- **Regras compartilhadas:** `shared/regras.js` (totais da OS, comissão, prazos), usado pela API e pela interface
+**Versão atual: só front-end.** Não há servidor nem banco externo. Tudo roda no navegador:
+
+- cadastros, OS, estoque e configuração ficam no `localStorage`;
+- as fotos das OS ficam no IndexedDB do navegador (cabe bem mais que o `localStorage`);
+- na primeira abertura o sistema já vem com **dados de exemplo** (clientes, técnicos, peças e 17 OS em todas as situações).
+
+Cada navegador tem os seus próprios dados. Em **Configurações → Dados deste navegador** dá para baixar e restaurar um backup (JSON, sem as fotos), recarregar os exemplos ou começar do zero.
+
+Tecnologias: React 18, Vite, React Router, TanStack Query e Recharts.
 
 ## Como rodar
 
-Requisitos: Node.js 20 ou mais novo.
-
 ```bash
-npm run setup      # instala, cria o banco e carrega dados de exemplo
-npm run dev        # API em http://localhost:3434 e interface em http://localhost:5174
+npm install
+npm run dev        # http://localhost:5174
 ```
 
-No Windows, dê dois cliques em `iniciar.bat`. Para começar com o banco vazio (só configuração e usuários), use `npm run setup:vazio`.
+No Windows, dê dois cliques em `iniciar.bat`.
 
-Acessos iniciais (senha `tecnitium`; troque em "Trocar senha" no rodapé do menu):
+Acessos (senha `tecnitium`):
 
 | E-mail | Perfil | Pode |
 |---|---|---|
-| admin@tecnitium.com.br | Administrador | tudo: equipe, comissões, usuários, configurações, excluir OS |
+| admin@tecnitium.com.br | Administrador | tudo: equipe, comissões, usuários, configurações, backup, excluir OS |
 | atendimento@tecnitium.com.br | Atendente | abrir e atualizar OS, clientes, aparelhos, estoque e fotos |
 | tecnico@tecnitium.com.br | Técnico | atualizar OS (diagnóstico, peças, situação), ver só as próprias comissões |
 
-### Produção
+O login separa o que cada perfil vê. Como os dados estão no próprio navegador, ele não é uma proteção de segurança: serve para demonstração e uso em um único computador.
 
-```bash
-npm run build      # compila a interface em web/dist
-npm start          # a API serve a interface, o /api e as fotos na mesma porta (3434)
-```
+## Deploy na Vercel
 
-Antes de publicar, troque `JWT_SECRET` em `server/.env`. As fotos ficam em `server/uploads/`: inclua essa pasta no backup junto com o banco.
+O `vercel.json` já define tudo: `npm ci`, `npm run build`, pasta `web/dist` e o redirecionamento das rotas para o `index.html`. Basta importar o repositório na Vercel.
+
+O `.npmrc` fixa o registro público do npm (`registry.npmjs.org`), para que a instalação funcione fora da rede interna.
 
 ## Funcionalidades
 
@@ -45,7 +48,7 @@ Antes de publicar, troque `JWT_SECRET` em `server/.env`. As fotos ficam em `serv
 | Comissão | Percentual separado para **peças** e para **mão de obra**. **Salário fixo recebe comissão só de peças.** Calculada e congelada na entrega da OS; o desconto é rateado entre peças e mão de obra. A base das peças pode ser o valor de venda ou o lucro (Configurações). Relatório por período, por técnico e por OS, com exportação. |
 | Estoque | Peças com código, localização, mínimo, custo e preço. Entradas (com custo médio), saídas e ajustes. **Peças da OS saem do estoque ao salvar e voltam ao cancelar ou excluir a OS.** Não deixa usar mais do que há em estoque. |
 | Ordem de serviço | Número automático, defeito, estado e acessórios na entrada, diagnóstico, serviço executado, peças do estoque e mão de obra, desconto, sinal e forma de pagamento, garantia. Impressão da via de entrada e do comprovante de retirada com os termos. |
-| Foto do aparelho na OS | Várias fotos por OS; no celular abre a câmera. As fotos são reduzidas antes do envio e saem na OS impressa. |
+| Foto do aparelho na OS | Várias fotos por OS; no celular abre a câmera. As fotos são reduzidas antes de salvar e saem na OS impressa. |
 | Alertas: prontos e atrasos | Painel e menu mostram OS atrasadas, que vencem hoje, prontas aguardando retirada (vermelho após o limite configurado, padrão 30 dias) e peças para repor. |
 | Prazo de entrega e retirada | Prazo padrão configurável; ao marcar "Pronta" grava a data; na entrega grava data e quem retirou. Botão para avisar o cliente pelo WhatsApp com mensagem pronta. |
 
@@ -53,11 +56,14 @@ Antes de publicar, troque `JWT_SECRET` em `server/.env`. As fotos ficam em `serv
 
 ```
 shared/regras.js            totais, comissão, situação de prazo, link do WhatsApp
-server/prisma/schema.prisma modelo de dados
-server/prisma/seed.js       configuração, usuários e dados de exemplo
-server/src/resources/       campos, permissões e regras (estoque, OS, comissão)
-server/src/routes/          login, usuários, configuração, fotos, painel, comissões
-web/src/pages/Ordens.jsx    lista e formulário da OS
-web/src/pages/Imprimir.jsx  OS para imprimir
+web/src/local/              "back-end" que roda no navegador
+  servidor.js               responde às rotas (/ordens, /painel, /comissoes...)
+  recursos.js               campos, permissões e regras (estoque, OS, comissão)
+  banco.js                  tabelas no localStorage, com transação (desfaz tudo se uma regra falhar)
+  fotos.js                  fotos no IndexedDB
+  exemplos.js               dados de exemplo da primeira abertura
+web/src/pages/              telas (painel, OS, impressão, estoque, comissões, configurações)
 web/src/entidades.jsx       telas de cadastro (campos e colunas)
 ```
+
+As telas chamam `api('/rota')` como chamariam um servidor. Para voltar a ter back-end no futuro, basta trocar a função `api` em `web/src/lib/api.js` por chamadas HTTP; a versão com Node.js, Express e Prisma está no histórico do git (commit `79b22f1`).

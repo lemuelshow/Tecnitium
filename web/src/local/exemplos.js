@@ -1,13 +1,8 @@
-// Cria configuracao, usuarios iniciais e, com --demo, dados de exemplo.
-// Uso: node prisma/seed.js          -> so configuracao e usuarios
-//      node prisma/seed.js --demo   -> + exemplos (apaga os dados operacionais existentes)
-import 'dotenv/config';
-import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+// Dados de exemplo (mockados) carregados na primeira vez que o sistema abre no navegador.
 import { isoDate, isoDateTime, calcularComissao } from '@tecnitium/shared';
+import { banco as prisma, hashSenha } from './banco.js';
+import { apagarTodasFotos } from './fotos.js';
 
-const prisma = new PrismaClient();
-const demo = process.argv.includes('--demo');
 const D = (dias) => { const d = new Date(); d.setDate(d.getDate() + dias); return isoDate(d); };
 const DT = (dias, hora) => { const d = new Date(); d.setDate(d.getDate() + dias); const [h, m] = hora.split(':'); d.setHours(+h, +m, 0, 0); return isoDateTime(d); };
 
@@ -21,18 +16,18 @@ async function base() {
 }
 
 async function usuarios(vinculos = {}) {
-  const senha = await bcrypt.hash('tecnitium', 10);
+  const senhaPara = (email) => hashSenha(email, 'tecnitium');
   const lista = [
     { nome: 'Administrador', email: 'admin@tecnitium.com.br', perfil: 'ADMIN' },
     { nome: 'Bianca Souza', email: 'atendimento@tecnitium.com.br', perfil: 'ATENDENTE', atendenteId: vinculos.atendenteId || null },
     ...(vinculos.tecnicoId ? [{ nome: 'Diego Ramos', email: 'tecnico@tecnitium.com.br', perfil: 'TECNICO', tecnicoId: vinculos.tecnicoId }] : []),
   ];
-  for (const u of lista) await prisma.usuario.upsert({ where: { email: u.email }, update: { tecnicoId: u.tecnicoId, atendenteId: u.atendenteId }, create: { ...u, senhaHash: senha } });
-  console.log('Usuários prontos (senha inicial: tecnitium)');
+  for (const u of lista) await prisma.usuario.upsert({ where: { email: u.email }, update: { tecnicoId: u.tecnicoId, atendenteId: u.atendenteId }, create: { ...u, senhaHash: await senhaPara(u.email) } });
 }
 
 async function exemplos() {
-  for (const m of ['fotoOS', 'movEstoque', 'ordemServico', 'peca', 'aparelho', 'cliente', 'tecnico', 'atendente']) await prisma[m].deleteMany();
+  await apagarTodasFotos();
+  for (const m of ['movEstoque', 'ordemServico', 'peca', 'aparelho', 'cliente', 'tecnico', 'atendente']) await prisma[m].deleteMany();
   await prisma.configuracao.update({ where: { id: 1 }, data: { nomeEmpresa: 'Tecnitium Assistência Técnica', documento: '12.345.678/0001-90', telefone: '(11) 3333-4455', whatsapp: '(11) 98888-7766', endereco: 'Rua Vergueiro, 1200 - Liberdade, São Paulo/SP', termos: TERMOS } });
 
   const t = {
@@ -146,11 +141,12 @@ async function exemplos() {
     const total = p.quantidade + (usado[p.id] || 0);
     if (total > 0) await prisma.movEstoque.create({ data: { pecaId: p.id, data: DT(-160, '08:30'), tipo: 'Entrada', quantidade: total, custoUnit: p.custo, origem: 'NF 4521 - Distribuidora Cell Parts', automatico: false } });
   }
-  console.log('Dados de exemplo criados.');
   return { tecnicoId: t.diego.id, atendenteId: at.bianca.id };
 }
 
-await base();
-const vinc = demo ? await exemplos() : {};
-await usuarios(vinc);
-await prisma.$disconnect();
+// demo = true: configuracao, usuarios e exemplos. demo = false: so configuracao e usuarios.
+export async function carregarExemplos(demo = true) {
+  await base();
+  const vinc = demo ? await exemplos() : {};
+  await usuarios(vinc);
+}
