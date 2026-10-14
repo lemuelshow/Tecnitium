@@ -212,7 +212,7 @@ export function OSForm({ registro, L, cfg, onFechar }) {
           <div className="sheet-h">
             <div><h2>{titulo}</h2>{!novo ? <span className="sub">Aberta em {fdt(registro.entrada)}{L.atendentesPorId[registro.atendenteId] ? ` por ${L.atendentesPorId[registro.atendenteId].nome}` : ''}</span> : null}</div>
             <div className="actions">
-              {!novo ? <Link className="btn sm" to={`/ordens/${registro.id}/imprimir`} target="_blank">Imprimir</Link> : null}
+              {!novo ? <Link className="btn sm" to={`/ordens/${registro.id}/imprimir`}>Imprimir</Link> : null}
               {zap ? <a className="btn sm wa" href={zap} target="_blank" rel="noreferrer"><IconeZap />Avisar cliente</a> : null}
               <button type="button" className="x" onClick={onFechar} aria-label="Fechar">×</button>
             </div>

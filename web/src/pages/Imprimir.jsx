@@ -1,25 +1,38 @@
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { numeroOS, totaisOS, somarDias } from '@tecnitium/shared';
 import { api } from '../lib/api.js';
 import { brl, num, fd, fdt } from '../lib/format.js';
 
 // Via da OS para imprimir (entrada no balcao ou comprovante de retirada).
+// Abre na mesma tela (no app instalado, uma aba nova sairia do app e perderia os dados).
 export default function Imprimir() {
   const { id } = useParams();
-  const os = useQuery({ queryKey: ['ordens', id], queryFn: () => api('/ordens/' + id) }).data;
+  const ir = useNavigate();
+  const voltar = () => ir(`/ordens?os=${id}`);
+  const consulta = useQuery({ queryKey: ['ordem', id], queryFn: () => api('/ordens/' + id), retry: false });
+  const os = consulta.data;
   const cfg = useQuery({ queryKey: ['config'], queryFn: () => api('/config') }).data;
   const cli = useQuery({ queryKey: ['clientes', os?.clienteId], queryFn: () => api('/clientes/' + os.clienteId), enabled: !!os }).data;
   const ap = useQuery({ queryKey: ['aparelhos', os?.aparelhoId], queryFn: () => api('/aparelhos/' + os.aparelhoId), enabled: !!os }).data;
   const tec = useQuery({ queryKey: ['tecnicos', os?.tecnicoId], queryFn: () => api('/tecnicos/' + os.tecnicoId), enabled: !!os?.tecnicoId }).data;
   const fotos = useQuery({ queryKey: ['fotos', id], queryFn: () => api('/fotos?osId=' + id) }).data || [];
+  if (consulta.error) {
+    return (
+      <div className="print-wrap"><div className="empty"><strong>Não foi possível abrir esta OS para impressão.</strong>{consulta.error.message}<br /><br /><button className="btn" onClick={() => ir('/ordens')}>Ir para as ordens de serviço</button></div></div>
+    );
+  }
   if (!os || !cfg || !cli || !ap) return <div className="empty"><strong>Preparando a OS…</strong></div>;
   const t = totaisOS(os);
   const entregue = os.status === 'Entregue';
 
   return (
     <div className="print-wrap">
-      <div className="print-bar"><button className="btn primary" onClick={() => window.print()}>Imprimir</button><button className="btn" onClick={() => window.close()}>Fechar</button></div>
+      <div className="print-bar">
+        <button className="btn" onClick={voltar}>← Voltar para a OS</button>
+        <button className="btn primary" onClick={() => window.print()}>Imprimir</button>
+      </div>
+      <p className="dica-print sub">No celular, “Imprimir” abre a tela do sistema, onde dá para escolher a impressora ou salvar em PDF. Se nada abrir, use o menu do navegador → Compartilhar → Imprimir.</p>
       <div className="doc">
         <div className="cab">
           <div>
