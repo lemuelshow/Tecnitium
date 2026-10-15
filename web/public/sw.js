@@ -1,6 +1,6 @@
 // Service worker do Tecnitium: guarda o aplicativo no aparelho para abrir sem internet.
 // Os dados ja ficam no navegador (localStorage e IndexedDB), entao o app funciona 100% offline.
-const VERSAO = 'tecnitium-v7';
+const VERSAO = 'tecnitium-v8';
 const BASE = ['/', '/manifest.webmanifest', '/icone.svg', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

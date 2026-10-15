@@ -60,6 +60,7 @@ export async function servidor(method, caminho, corpo) {
   if (base === 'painel') return painel(usuario);
   if (base === 'comissoes') return comissoes(usuario, query);
   if (base === 'dados') return dados(id, body, usuario);
+  if (base === 'impostos' && id === 'base') return baseImpostos(usuario, query);
   if (recursos[base] && !sub) return crud(recursos[base], method, id, body, usuario);
   throw new HttpError(404, 'Rota não encontrada.');
 }
@@ -181,6 +182,7 @@ const deJson = (recurso, d) => Object.fromEntries(Object.entries(recurso.campos)
 
 async function crud(recurso, method, id, body, usuario) {
   const m = recurso.modelo;
+  if (recurso.leitura) exigir(usuario, recurso.leitura);
   if (method === 'GET') {
     if (id) {
       const r = await banco[m].findUnique({ where: { id } });
@@ -326,6 +328,43 @@ async function painel(usuario) {
     prontas: retirar.map(resumo).sort((a, b) => (a.dataPronta || '').localeCompare(b.dataPronta || '')),
     estoqueBaixo: baixo.map((p) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, quantidade: p.quantidade, minimo: p.minimo, unidade: p.unidade })),
     porStatus, meses,
+    contas: usuario.perfil === 'ADMIN' ? await resumoContas() : null,
+  };
+}
+
+async function resumoContas() {
+  const h = hoje();
+  const daqui7 = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return isoDate(d); })();
+  const abertas = await banco.contaPagar.findMany({ where: { pago: false }, orderBy: { vencimento: 'asc' } });
+  const vencidas = abertas.filter((c) => c.vencimento < h);
+  const proximas = abertas.filter((c) => c.vencimento >= h && c.vencimento <= daqui7);
+  return {
+    vencidas: vencidas.length, valorVencidas: soma(vencidas, (c) => c.valor),
+    proximas: proximas.length, valorProximas: soma(proximas, (c) => c.valor),
+    lista: [...vencidas, ...proximas].slice(0, 8).map((c) => ({ id: c.id, descricao: c.descricao, categoria: c.categoria, valor: c.valor, vencimento: c.vencimento })),
+  };
+}
+
+// Receita por mes a partir das OS entregues (desconto rateado), para o simulador de impostos.
+async function baseImpostos(usuario, query) {
+  exigir(usuario, ['ADMIN']);
+  const mes = /^\d{4}-\d{2}$/.test(query.mes || '') ? query.mes : hoje().slice(0, 7);
+  const ordens = await lerOS({ status: 'Entregue' });
+  const porMes = {};
+  for (const o of ordens) {
+    const k = mesDe(o.dataEntrega); if (!k) continue;
+    const t = totaisOS(o); const f = t.bruto ? t.total / t.bruto : 0;
+    porMes[k] ||= { servicos: 0, pecas: 0 };
+    porMes[k].servicos += t.servicos * f; porMes[k].pecas += t.pecas * f;
+  }
+  const [y, m] = mes.split('-').map(Number);
+  const meses12 = Array.from({ length: 12 }, (_, i) => isoDate(new Date(y, m - 2 - i, 1)).slice(0, 7));
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const atual = porMes[mes] || { servicos: 0, pecas: 0 };
+  return {
+    mes, servicos: r2(atual.servicos), pecas: r2(atual.pecas),
+    rbt12: r2(meses12.reduce((s, k) => s + (porMes[k] ? porMes[k].servicos + porMes[k].pecas : 0), 0)),
+    meses12: meses12.map((k) => ({ mes: k, total: r2(porMes[k] ? porMes[k].servicos + porMes[k].pecas : 0) })),
   };
 }
 

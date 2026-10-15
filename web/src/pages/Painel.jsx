@@ -73,6 +73,31 @@ export default function Painel() {
           {P.prontas.some((o) => o.situacao.tom === 'bad') ? <p className="sub" style={{ marginTop: 10 }}>Em vermelho: prontas há {P.config.diasAbandono} dias ou mais sem retirada.</p> : null}
         </div>
 
+        {P.contas ? (
+          <div className="panel span-12">
+            <div className="panel-h"><h2>Contas a pagar</h2><Link to="/financeiro">Ver todas</Link></div>
+            <div className="legend" style={{ marginBottom: P.contas.lista.length ? 12 : 0, gap: 6 }}>
+              <span><Pill tom={P.contas.vencidas ? 'bad' : 'ok'}>{P.contas.vencidas ? `${P.contas.vencidas} vencida${P.contas.vencidas > 1 ? 's' : ''}` : 'Nada vencido'}</Pill>{P.contas.vencidas ? <b>{brl(P.contas.valorVencidas)}</b> : null}</span>
+              <span><Pill tom={P.contas.proximas ? 'warn' : 'mute'}>{P.contas.proximas} nos próximos 7 dias</Pill><b>{brl(P.contas.valorProximas)}</b></span>
+            </div>
+            {P.contas.lista.length ? (
+              <ul className="lista-os">
+                {P.contas.lista.map((c) => {
+                  const d = Math.round((new Date(c.vencimento + 'T12:00') - new Date(new Date().toISOString().slice(0, 10) + 'T12:00')) / 864e5);
+                  const tom = d < 0 ? 'bad' : 'warn';
+                  return (
+                    <li key={c.id} tabIndex={0} onClick={() => ir('/financeiro')} onKeyDown={(e) => e.key === 'Enter' && ir('/financeiro')}>
+                      <span className="sev" style={{ background: corTom[tom] }} />
+                      <span><span className="t">{c.descricao}</span><span className="d">{c.categoria} · vence {fd(c.vencimento)}</span></span>
+                      <span className="r"><strong className="mono">{brl(c.valor)}</strong><Pill tom={tom}>{d < 0 ? `vencida há ${-d} d` : d === 0 ? 'vence hoje' : `em ${d} d`}</Pill></span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="panel span-7">
           <div className="panel-h"><h2>Faturamento dos últimos 6 meses</h2><span className="count">OS entregues</span></div>
           <div className="chart">

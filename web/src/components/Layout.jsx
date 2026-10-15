@@ -25,6 +25,7 @@ const IC = {
   aparelhos: <><rect x="7" y="2.5" width="10" height="19" rx="2" /><path d="M11 18.5h2" /></>,
   estoque: <path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10" />,
   comissoes: <path d="M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.8 5 3.5 5 1.6 5 3.5-2.2 3-5 3-5-1.1-5-3" />,
+  financeiro: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4M15 15h2" /></>,
   tecnicos: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z" />,
   atendentes: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   usuarios: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
@@ -34,7 +35,7 @@ const IC = {
 const MENU = [
   ['painel', 'Painel'],
   ['sep', 'Atendimento'], ['ordens', 'Ordens de serviço'], ['clientes', 'Clientes'], ['aparelhos', 'Aparelhos'],
-  ['sep', 'Gestão'], ['estoque', 'Estoque'], ['comissoes', 'Comissões', ['ADMIN', 'TECNICO']],
+  ['sep', 'Gestão'], ['estoque', 'Estoque'], ['financeiro', 'Financeiro', ['ADMIN']], ['comissoes', 'Comissões', ['ADMIN', 'TECNICO']],
   ['sep', 'Equipe', ['ADMIN']], ['tecnicos', 'Técnicos', ['ADMIN']], ['atendentes', 'Atendentes', ['ADMIN']], ['usuarios', 'Usuários', ['ADMIN']], ['configuracoes', 'Configurações', ['ADMIN']],
 ];
 

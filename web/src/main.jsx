@@ -10,6 +10,7 @@ import Ordens from './pages/Ordens.jsx';
 import Imprimir from './pages/Imprimir.jsx';
 import Portal from './pages/Portal.jsx';
 import * as G from './pages/Gestao.jsx';
+import { ContasPagar, Simulador } from './pages/Financeiro.jsx';
 import './styles/app.css';
 
 const qc = new QueryClient({
@@ -99,6 +100,8 @@ function Rotas() {
         {admin ? <Route path="atendentes" element={<G.Atendentes />} /> : null}
         {admin ? <Route path="usuarios" element={<G.Usuarios />} /> : null}
         {admin ? <Route path="configuracoes" element={<G.Configuracoes />} /> : null}
+        {admin ? <Route path="financeiro" element={<ContasPagar />} /> : null}
+        {admin ? <Route path="financeiro/impostos" element={<Simulador />} /> : null}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

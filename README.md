@@ -28,6 +28,11 @@ Como o CPF/CNPJ não é segredo, quem souber o documento de um cliente consegue 
 
 **Atenção nesta versão sem servidor:** os dados ficam no navegador da loja. O portal funciona no mesmo aparelho (ex.: tablet no balcão). Para o cliente acompanhar do próprio celular, é preciso voltar a ter um back-end (as rotas `/portal` já estão separadas em `web/src/local/servidor.js`).
 
+## Financeiro (somente administrador)
+
+- **Contas a pagar:** descrição, categoria (aluguel, energia, fornecedor de peças, impostos, contador...), favorecido, valor, vencimento, nº do documento e pagamento (data e forma). Contas com repetição **mensal** criam a do mês seguinte quando são pagas. Totais de vencidas, próximos 7 dias, em aberto e pago no mês; o painel do administrador mostra as vencidas e as que vencem na semana.
+- **Simulador de impostos:** compara **MEI**, **Simples Nacional** e **Lucro Presumido** para o mês. Mão de obra entra no Simples pelo Anexo III (reparo e manutenção) e peças pelo Anexo I (comércio), com a faixa definida pela receita dos últimos 12 meses (RBT12). "Usar dados do sistema" puxa a receita das OS entregues no mês e dos 12 meses anteriores. Mostra o detalhamento de cada imposto, aponta o menor e lança o DAS em contas a pagar (vencimento dia 20 do mês seguinte). É uma estimativa: confirme com o contador.
+
 ## Busca de CNPJ e CEP no cadastro do cliente
 
 A lupa ao lado do **CPF/CNPJ** e do **CEP** (ou Enter no campo) preenche o cadastro com serviços públicos e gratuitos, chamados direto do navegador:

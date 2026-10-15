@@ -106,3 +106,69 @@ export function etapasOS(os) {
   ];
   return etapas.map((e, i) => ({ ...e, feito: atual > i + 1 || (atual === 4 && i === 3), atual: s !== 'Cancelada' && atual === i + 1 && atual !== 4 }));
 }
+
+// ---------- simulador de impostos (estimativa; confirmar com o contador) ----------
+// Simples Nacional (LC 123/2006, tabelas vigentes desde 2018). A faixa e definida pela receita
+// bruta dos ultimos 12 meses (RBT12) da empresa toda e aplicada a cada anexo.
+// Anexo III: servicos de reparo e manutencao em geral. Anexo I: venda de pecas (comercio).
+export const SIMPLES_ANEXO_III = [[180000, 0.06, 0], [360000, 0.112, 9360], [720000, 0.135, 17640], [1800000, 0.16, 35640], [3600000, 0.21, 125640], [4800000, 0.33, 648000]];
+export const SIMPLES_ANEXO_I = [[180000, 0.04, 0], [360000, 0.073, 5940], [720000, 0.095, 13860], [1800000, 0.107, 22500], [3600000, 0.143, 87300], [4800000, 0.19, 378000]];
+export const LIMITE_SIMPLES = 4800000;
+export const LIMITE_MEI = 81000;
+
+export function aliquotaSimples(rbt12, tabela) {
+  if (rbt12 > LIMITE_SIMPLES) return null;
+  const i = tabela.findIndex(([lim]) => rbt12 <= lim);
+  const [, nominal, deduzir] = tabela[i];
+  // Empresa em inicio de atividade (sem RBT12): usa a aliquota nominal da 1a faixa.
+  const efetiva = rbt12 > 0 ? (rbt12 * nominal - deduzir) / rbt12 : nominal;
+  return { faixa: i + 1, nominal, deduzir, efetiva };
+}
+
+export function simularImpostos({ servicos = 0, pecas = 0, rbt12 = 0, issAliq = 5, icmsAliq = 0, salarioMinimo = 1518 }) {
+  servicos = Math.max(0, Number(servicos) || 0); pecas = Math.max(0, Number(pecas) || 0); rbt12 = Math.max(0, Number(rbt12) || 0);
+  const receita = servicos + pecas;
+  const r2 = (n) => Math.round(n * 100) / 100;
+
+  // MEI: valor fixo mensal (INSS 5% do salario minimo + ICMS R$ 1 + ISS R$ 5)
+  const mei = {
+    nome: 'MEI',
+    elegivel: rbt12 <= LIMITE_MEI,
+    motivo: rbt12 > LIMITE_MEI ? `Receita de 12 meses acima do limite do MEI (R$ ${LIMITE_MEI.toLocaleString('pt-BR')} por ano).` : '',
+    itens: [['INSS (5% do salário mínimo)', r2(salarioMinimo * 0.05)], ...(pecas ? [['ICMS (valor fixo)', 1]] : []), ...(servicos ? [['ISS (valor fixo)', 5]] : [])],
+  };
+
+  // Simples Nacional
+  const a3 = aliquotaSimples(rbt12, SIMPLES_ANEXO_III), a1 = aliquotaSimples(rbt12, SIMPLES_ANEXO_I);
+  const simples = {
+    nome: 'Simples Nacional',
+    elegivel: !!a3,
+    motivo: a3 ? '' : 'Receita de 12 meses acima do limite do Simples (R$ 4,8 milhões).',
+    anexos: a3 ? { servicos: a3, pecas: a1 } : null,
+    itens: a3 ? [[`Serviços · Anexo III, faixa ${a3.faixa} (${(a3.efetiva * 100).toFixed(2).replace('.', ',')}%)`, r2(servicos * a3.efetiva)], [`Peças · Anexo I, faixa ${a1.faixa} (${(a1.efetiva * 100).toFixed(2).replace('.', ',')}%)`, r2(pecas * a1.efetiva)]] : [],
+  };
+
+  // Lucro Presumido (equivalente mensal; IRPJ e CSLL sao apurados por trimestre)
+  const baseIr = servicos * 0.32 + pecas * 0.08, baseCs = servicos * 0.32 + pecas * 0.12;
+  const presumido = {
+    nome: 'Lucro Presumido',
+    elegivel: true,
+    motivo: '',
+    itens: [
+      ['IRPJ (15% sobre a presunção de 32% serviços / 8% peças)', r2(baseIr * 0.15 + Math.max(0, baseIr - 20000) * 0.10)],
+      ['CSLL (9% sobre a presunção de 32% / 12%)', r2(baseCs * 0.09)],
+      ['PIS (0,65%)', r2(receita * 0.0065)],
+      ['COFINS (3%)', r2(receita * 0.03)],
+      [`ISS (${String(issAliq).replace('.', ',')}% sobre serviços)`, r2(servicos * (Number(issAliq) || 0) / 100)],
+      ...(Number(icmsAliq) ? [[`ICMS efetivo (${String(icmsAliq).replace('.', ',')}% sobre peças)`, r2(pecas * Number(icmsAliq) / 100)]] : []),
+    ],
+  };
+
+  const regimes = [mei, simples, presumido].map((r) => {
+    const total = r2(r.itens.reduce((s, [, v]) => s + v, 0));
+    return { ...r, total, aliquotaEfetiva: receita ? total / receita : 0 };
+  });
+  const elegiveis = regimes.filter((r) => r.elegivel);
+  const melhor = elegiveis.length ? elegiveis.reduce((a, b) => (b.total < a.total ? b : a)).nome : null;
+  return { receita, regimes, melhor };
+}

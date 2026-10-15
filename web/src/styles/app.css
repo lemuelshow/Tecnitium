@@ -536,3 +536,20 @@ input[type=date]::-webkit-datetime-edit,input[type=datetime-local]::-webkit-date
 .campo-busca .lupa svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
 .girando{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--accent-strong);animation:girar .8s linear infinite}
 @keyframes girar{to{transform:rotate(360deg)}}
+
+/* ---------- financeiro: simulador de impostos ---------- */
+.regimes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.regime{border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0;background:var(--surface)}
+.regime.melhor{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
+.regime.fora{opacity:.62}
+.regime-topo{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.regime-valor{font-family:var(--f-display);font-size:28px;font-weight:700;line-height:1.1}
+.regime ul{list-style:none;margin:6px 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12.5px;border-top:1px solid var(--line);padding-top:8px}
+.regime li{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.regime li .mono{white-space:nowrap}
+.regime li span:first-child{color:var(--muted)}
+.regime .btn{justify-content:center;margin-top:auto}
+.explica{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:var(--muted)}
+.explica strong{color:var(--ink)}
+details summary{cursor:pointer}
+

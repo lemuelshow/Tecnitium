@@ -40,6 +40,17 @@ async function movimentarEstoque(tx, os, antes, depois) {
   }
 }
 
+export const CATEGORIAS_CONTA = ['Aluguel', 'Energia', 'Água', 'Internet e telefone', 'Fornecedor de peças', 'Salários', 'Comissões', 'Impostos', 'Contador', 'Sistemas e assinaturas', 'Marketing', 'Manutenção da loja', 'Outros'];
+
+// Soma meses mantendo o dia (31/01 + 1 mes = 28/02).
+function somarMes(data, n = 1) {
+  const [y, m, d] = data.split('-').map(Number);
+  const alvo = new Date(y, m - 1 + n, 1);
+  const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+  alvo.setDate(Math.min(d, ultimo));
+  return `${alvo.getFullYear()}-${String(alvo.getMonth() + 1).padStart(2, '0')}-${String(alvo.getDate()).padStart(2, '0')}`;
+}
+
 export const recursos = {
   clientes: {
     modelo: 'cliente', ordem: { nome: 'asc' }, escrita: BALCAO,
@@ -148,6 +159,29 @@ export const recursos = {
         if (p.quantidade - m.quantidade < 0) throw falha('Excluir esta movimentação deixaria o estoque negativo.');
         await tx.peca.update({ where: { id: p.id }, data: { quantidade: p.quantidade - m.quantidade } });
       }
+    },
+  },
+
+  contasPagar: {
+    modelo: 'contaPagar', ordem: { vencimento: 'asc' }, escrita: ADMIN, leitura: ADMIN,
+    campos: {
+      descricao: txt('a descrição', req), categoria: txt('a categoria', { ...req, opcoes: CATEGORIAS_CONTA }), favorecido: txt('Favorecido'),
+      valor: num('o valor', req), vencimento: txt('o vencimento', req), recorrencia: txt('Repetição', { opcoes: ['Não', 'Mensal'] }),
+      pago: bool('Pago'), dataPagamento: txt('Data do pagamento'), formaPagamento: txt('Forma de pagamento', { opcoes: FORMAS_PAGAMENTO }),
+      documento: txt('Nº do documento'), obs: txt('Observações'),
+    },
+    validar(d) { if (!(d.valor > 0)) throw falha('O valor deve ser maior que zero.', 'valor'); },
+    antes(d, { final }) {
+      if (final.pago && !final.dataPagamento) d.dataPagamento = hoje();
+      if (!final.pago) { d.dataPagamento = null; }
+    },
+    // Conta mensal paga: cria a do mes seguinte (uma vez so).
+    async depois(c, { tx, atual }) {
+      if (c.recorrencia !== 'Mensal' || !c.pago || atual?.pago) return;
+      const proximo = somarMes(c.vencimento);
+      const ja = await tx.contaPagar.findFirst({ where: { origemId: c.id } });
+      if (ja) return;
+      await tx.contaPagar.create({ data: { descricao: c.descricao, categoria: c.categoria, favorecido: c.favorecido, valor: c.valor, vencimento: proximo, recorrencia: 'Mensal', formaPagamento: c.formaPagamento, origemId: c.id } });
     },
   },
 

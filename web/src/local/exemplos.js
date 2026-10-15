@@ -147,6 +147,20 @@ async function exemplos() {
     const total = p.quantidade + (usado[p.id] || 0);
     if (total > 0) await prisma.movEstoque.create({ data: { pecaId: p.id, data: DT(-160, '08:30'), tipo: 'Entrada', quantidade: total, custoUnit: p.custo, origem: 'NF 4521 - Distribuidora Cell Parts', automatico: false } });
   }
+  // Contas a pagar de exemplo (algumas pagas, uma vencida e outras a vencer).
+  await prisma.contaPagar.deleteMany();
+  const conta = (descricao, categoria, favorecido, valor, dias, extra = {}) => prisma.contaPagar.create({ data: { descricao, categoria, favorecido, valor, vencimento: D(dias), ...extra } });
+  const pagaEm = (dias, forma = 'Pix') => ({ pago: true, dataPagamento: D(dias), formaPagamento: forma });
+  await conta('Aluguel da loja', 'Aluguel', 'Imobiliária Vergueiro', 2800, -25, { recorrencia: 'Mensal', ...pagaEm(-26, 'Boleto') });
+  await conta('Aluguel da loja', 'Aluguel', 'Imobiliária Vergueiro', 2800, 5, { recorrencia: 'Mensal' });
+  await conta('Energia elétrica', 'Energia', 'Enel', 412.37, -2);
+  await conta('Internet fibra 500 MB', 'Internet e telefone', 'Vivo Fibra', 149.9, 3, { recorrencia: 'Mensal' });
+  await conta('Honorários contábeis', 'Contador', 'Contabilidade Exata', 650, 8, { recorrencia: 'Mensal' });
+  await conta('Peças NF 4521 - parcela 2/3', 'Fornecedor de peças', 'Distribuidora Cell Parts', 1450, 12, { documento: 'NF 4521' });
+  await conta('Peças NF 4521 - parcela 1/3', 'Fornecedor de peças', 'Distribuidora Cell Parts', 1450, -18, { documento: 'NF 4521', ...pagaEm(-18, 'Boleto') });
+  await conta('DAS Simples Nacional', 'Impostos', 'Receita Federal', 486.2, -25, pagaEm(-27));
+  await conta('Sistema de emissão de NFS-e', 'Sistemas e assinaturas', 'NotaFácil', 89.9, 15, { recorrencia: 'Mensal' });
+
   return { tecnicoId: t.diego.id, atendenteId: at.bianca.id };
 }
 
