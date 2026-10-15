@@ -1,7 +1,8 @@
 // Consultas publicas e gratuitas para preencher cadastros.
-// CNPJ: BrasilAPI (https://brasilapi.com.br/docs#tag/CNPJ)
+// CNPJ: BrasilAPI (https://brasilapi.com.br/docs#tag/CNPJ); se falhar, tenta Minha Receita,
+//       CNPJ.ws e CNPJa, nessa ordem (todas gratuitas e liberadas para o navegador).
 // CEP:  ViaCEP (https://viacep.com.br), com a BrasilAPI como reserva.
-// Sao servicos comunitarios, sem garantia: em caso de falha o usuario preenche a mao.
+// Sao servicos comunitarios, sem garantia: se todos falharem, o usuario preenche a mao.
 
 const digitos = (s) => String(s || '').replace(/\D/g, '');
 const titulo = (s) => String(s || '').toLowerCase().replace(/(^|\s|-|\/)(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Das|Dos|E)\b/g, (w) => w.toLowerCase())
@@ -43,39 +44,85 @@ async function buscarJson(url, segundos = 10) {
   }
 }
 
-// Retorna { patch, aviso, focar } para mesclar no formulario do cliente.
+// Cada servico devolve o CNPJ num formato; aqui todos viram o mesmo objeto.
+const montarRua = (tipo, rua) => (tipo && rua && !String(rua).toUpperCase().startsWith(String(tipo).toUpperCase()) ? `${tipo} ${rua}` : rua);
+const PROVEDORES_CNPJ = [
+  {
+    nome: 'BrasilAPI', url: (d) => `https://brasilapi.com.br/api/cnpj/v1/${d}`,
+    ler: (c) => ({ razao: c.razao_social, fantasia: c.nome_fantasia, situacao: c.descricao_situacao_cadastral, rua: montarRua(c.descricao_tipo_de_logradouro, c.logradouro), numero: c.numero, complemento: c.complemento, bairro: c.bairro, cep: c.cep, cidade: c.municipio, uf: c.uf, telefone: c.ddd_telefone_1, email: c.email }),
+  },
+  {
+    nome: 'Minha Receita', url: (d) => `https://minhareceita.org/${d}`,
+    ler: (c) => ({ razao: c.razao_social, fantasia: c.nome_fantasia, situacao: c.descricao_situacao_cadastral, rua: montarRua(c.descricao_tipo_de_logradouro, c.logradouro), numero: c.numero, complemento: c.complemento, bairro: c.bairro, cep: c.cep, cidade: c.municipio, uf: c.uf, telefone: c.ddd_telefone_1, email: c.email }),
+  },
+  {
+    nome: 'CNPJ.ws', url: (d) => `https://publica.cnpj.ws/cnpj/${d}`,
+    ler: (c) => {
+      const e = c.estabelecimento || {};
+      return { razao: c.razao_social, fantasia: e.nome_fantasia, situacao: e.situacao_cadastral, rua: montarRua(e.tipo_logradouro, e.logradouro), numero: e.numero, complemento: e.complemento, bairro: e.bairro, cep: e.cep, cidade: e.cidade?.nome, uf: e.estado?.sigla, telefone: e.ddd1 && e.telefone1 ? e.ddd1 + e.telefone1 : '', email: e.email };
+    },
+  },
+  {
+    nome: 'CNPJá', url: (d) => `https://open.cnpja.com/office/${d}`,
+    ler: (c) => {
+      const a = c.address || {}, f = (c.phones || [])[0];
+      return { razao: c.company?.name, fantasia: c.alias, situacao: c.status?.text, rua: a.street, numero: a.number, complemento: a.details, bairro: a.district, cep: a.zip, cidade: a.city, uf: a.state, telefone: f ? f.area + f.number : '', email: (c.emails || [])[0]?.address };
+    },
+  },
+];
+
+// Tenta os servicos em ordem. "Nao encontrado" de um servico basta; falha tecnica passa para o proximo.
+async function buscarCnpjEmCadeia(d) {
+  let naoEncontrado = 0, limite = false;
+  for (const p of PROVEDORES_CNPJ) {
+    try {
+      const { status, corpo } = await buscarJson(p.url(d), 8);
+      if (status === 200 && corpo) {
+        const dados = p.ler(corpo);
+        if (dados.razao) return { ...dados, fonte: p.nome };
+      }
+      if (status === 404) naoEncontrado++;
+      if (status === 429) limite = true;
+      if (naoEncontrado >= 2) break; // dois servicos confirmaram que o CNPJ nao existe
+    } catch (e) {
+      if (!navigator.onLine) throw e; // sem internet: nao adianta tentar os outros
+    }
+  }
+  if (naoEncontrado) throw new Error('CNPJ não encontrado na Receita Federal. Confira os números.');
+  if (limite) throw new Error('Os serviços gratuitos de CNPJ atingiram o limite de consultas agora. Aguarde um minuto e tente de novo, ou preencha à mão.');
+  throw new Error('Os serviços de consulta de CNPJ estão fora do ar no momento. Tente de novo em alguns minutos ou preencha os dados à mão.');
+}
+
+// Retorna { patch, aviso, alerta } para mesclar no formulario do cliente.
 export async function consultarCnpj(valor, form = {}) {
   const d = digitos(valor);
   if (d.length === 11) throw new Error('A busca funciona só com CNPJ. Para CPF não existe consulta pública: preencha os dados à mão.');
   if (d.length !== 14) throw new Error('Digite os 14 números do CNPJ para buscar.');
   if (!cnpjValido(d)) throw new Error('CNPJ inválido. Confira os números digitados.');
-  const { status, corpo } = await buscarJson(`https://brasilapi.com.br/api/cnpj/v1/${d}`);
-  if (status === 404) throw new Error('CNPJ não encontrado na Receita Federal.');
-  if (status === 429) throw new Error('Muitas consultas seguidas no serviço gratuito. Aguarde um minuto e tente de novo.');
-  if (status === 403) throw new Error('O serviço de CNPJ recusou a consulta agora. Tente de novo em instantes ou preencha à mão.');
-  if (status !== 200 || !corpo) throw new Error(corpo?.message || 'O serviço de CNPJ não respondeu. Tente de novo em instantes.');
+  const c = await buscarCnpjEmCadeia(d);
 
-  const c = corpo;
-  const rua = [titulo(c.descricao_tipo_de_logradouro ? `${c.descricao_tipo_de_logradouro} ${c.logradouro}` : c.logradouro), c.numero && c.numero !== 'S/N' ? c.numero : c.numero === 'S/N' ? 's/n' : ''].filter(Boolean).join(', ');
-  const endereco = [rua, titulo(c.complemento), titulo(c.bairro)].filter(Boolean).join(' - ');
-  const fantasia = c.nome_fantasia && c.nome_fantasia.trim() && c.nome_fantasia.trim().toUpperCase() !== String(c.razao_social).toUpperCase() ? titulo(c.nome_fantasia) : '';
+  const num = String(c.numero || '').trim();
+  const rua = [titulo(c.rua), num && !/^S\/?N$/i.test(num) ? num : num ? 's/n' : ''].filter(Boolean).join(', ');
+  const endereco = [rua, titulo(String(c.complemento || '').replace(/\s{2,}/g, ' ')), titulo(c.bairro)].filter(Boolean).join(' - ');
+  const fantasia = c.fantasia && c.fantasia.trim() && c.fantasia.trim().toUpperCase() !== String(c.razao).toUpperCase() ? titulo(c.fantasia) : '';
   const patch = {
     documento: formatarCnpj(d),
-    nome: titulo(c.razao_social),
+    nome: titulo(c.razao),
     cep: c.cep ? formatarCep(c.cep) : form.cep,
     endereco: endereco || form.endereco,
-    cidade: c.municipio ? titulo(c.municipio) : form.cidade,
+    cidade: c.cidade ? titulo(c.cidade) : form.cidade,
     uf: c.uf || form.uf,
   };
   // Telefone e e-mail so entram se o campo estiver vazio (nao sobrescreve o contato que o atendente ja digitou).
-  if (!form.telefone && c.ddd_telefone_1) patch.telefone = formatarFone(c.ddd_telefone_1);
+  if (!form.telefone && c.telefone) patch.telefone = formatarFone(c.telefone);
   if (!form.email && c.email) patch.email = String(c.email).toLowerCase();
   if (fantasia && !(form.obs || '').includes(fantasia)) patch.obs = [`Nome fantasia: ${fantasia}`, form.obs].filter(Boolean).join('\n');
-  const situacao = String(c.descricao_situacao_cadastral || '').toUpperCase();
-  const aviso = situacao && situacao !== 'ATIVA'
+  const situacao = String(c.situacao || '').toUpperCase();
+  const inativa = !!situacao && situacao !== 'ATIVA';
+  const aviso = inativa
     ? `Dados preenchidos. Atenção: a situação deste CNPJ na Receita é "${titulo(situacao)}".`
-    : `Dados de ${fantasia || titulo(c.razao_social)} preenchidos. Confira antes de salvar.`;
-  return { patch, aviso, alerta: !!situacao && situacao !== 'ATIVA' };
+    : `Dados de ${fantasia || titulo(c.razao)} preenchidos. Confira antes de salvar.`;
+  return { patch, aviso, alerta: inativa, fonte: c.fonte };
 }
 
 export async function consultarCep(valor, form = {}) {

@@ -28,6 +28,15 @@ Como o CPF/CNPJ não é segredo, quem souber o documento de um cliente consegue 
 
 **Atenção nesta versão sem servidor:** os dados ficam no navegador da loja. O portal funciona no mesmo aparelho (ex.: tablet no balcão). Para o cliente acompanhar do próprio celular, é preciso voltar a ter um back-end (as rotas `/portal` já estão separadas em `web/src/local/servidor.js`).
 
+## Busca de CNPJ e CEP no cadastro do cliente
+
+A lupa ao lado do **CPF/CNPJ** e do **CEP** (ou Enter no campo) preenche o cadastro com serviços públicos e gratuitos, chamados direto do navegador:
+
+- **CNPJ:** BrasilAPI → Minha Receita → CNPJ.ws → CNPJá. Se um serviço estiver fora do ar ou no limite, o sistema tenta o próximo sozinho. Preenche razão social, endereço, CEP, cidade, UF, telefone e e-mail (estes dois só se estiverem vazios) e avisa quando o CNPJ não está ativo.
+- **CEP:** ViaCEP, com a BrasilAPI de reserva. Preenche rua, bairro, cidade e UF e deixa o cursor no lugar do número.
+
+CPF não tem consulta pública. Se todos os serviços falharem, aparece uma mensagem e o atendente preenche à mão (código em `web/src/lib/consultas.js`).
+
 ## Fotos com marcação de defeitos
 
 Ao tirar uma foto na OS, abre um editor para desenhar sobre ela: caneta livre, círculo e seta, quatro cores, três espessuras, desfazer e limpar (dedo, caneta ou mouse). Qualquer foto pode ser marcada depois pelo botão ✎. Fotos tiradas enquanto a OS está **Aberta** ou **Em análise** ficam como **Entrada** (o cliente vê); depois disso, ficam como **Reparo** (só a equipe vê).
