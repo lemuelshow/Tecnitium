@@ -8,6 +8,7 @@ import { carregarExemplos } from './exemplos.js';
 import { listarFotos, salvarFoto, obterFoto, apagarFoto, apagarTodasFotos, atualizarFoto } from './fotos.js';
 
 const SESSAO = 'tecnitium:sessao';
+export const LIMITE_VIDEO = 150 * 1024 * 1024; // 150 MB por video
 const PERFIS = { ADMIN: 'Administrador', ATENDENTE: 'Atendente', TECNICO: 'Técnico' };
 const soma = (l, f) => l.reduce((s, x) => s + (Number(f(x)) || 0), 0);
 const publico = ({ senhaHash, ...u }) => u;
@@ -236,9 +237,11 @@ async function fotos(method, id, b, query, usuario) {
   if (method === 'GET') { if (!query.osId) throw falha('Informe a OS.'); return listarFotos(query.osId); }
   if (method === 'POST') {
     const arq = b.foto;
-    if (!(arq instanceof Blob)) throw falha('Nenhuma imagem recebida.');
-    if (!/^image\//.test(arq.type)) throw falha('Envie uma imagem JPG, PNG ou WEBP.');
-    if (arq.size > 5 * 1024 * 1024) throw falha('A imagem passa de 5 MB.');
+    if (!(arq instanceof Blob)) throw falha('Nenhum arquivo recebido.');
+    const video = /^video\//.test(arq.type);
+    if (!video && !/^image\//.test(arq.type)) throw falha('Envie uma foto (JPG, PNG, WEBP) ou um vídeo (MP4, MOV, WEBM).');
+    if (!video && arq.size > 5 * 1024 * 1024) throw falha('A imagem passa de 5 MB.');
+    if (video && arq.size > LIMITE_VIDEO) throw falha(`O vídeo tem ${Math.round(arq.size / 1048576)} MB e o limite é ${LIMITE_VIDEO / 1048576} MB. Grave um vídeo mais curto (até uns 2 minutos).`);
     const os = await banco.ordemServico.findUnique({ where: { id: String(b.osId || '') } });
     if (!os) throw new HttpError(404, 'OS não encontrada.');
     // Foto de entrada (o cliente ve) enquanto a OS ainda nao entrou em reparo; depois, foto do reparo.
@@ -248,6 +251,8 @@ async function fotos(method, id, b, query, usuario) {
   if (method === 'PUT') {
     const arq = b.foto;
     if (!(arq instanceof Blob) || !/^image\//.test(arq.type)) throw falha('Imagem inválida.');
+    const atual = await obterFoto(id);
+    if (atual?.tipo === 'video') throw falha('Só é possível desenhar em fotos.');
     const f = await atualizarFoto(id, arq);
     if (!f) throw new HttpError(404, 'Foto não encontrada.');
     return f;

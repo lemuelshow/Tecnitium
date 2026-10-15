@@ -42,6 +42,10 @@ A lupa ao lado do **CPF/CNPJ** e do **CEP** (ou Enter no campo) preenche o cadas
 
 CPF não tem consulta pública. Se todos os serviços falharem, aparece uma mensagem e o atendente preenche à mão (código em `web/src/lib/consultas.js`).
 
+## Vídeos na OS
+
+Ao lado de "Adicionar foto", o botão **Gravar vídeo** abre a câmera de vídeo no celular (ou escolhe um arquivo no computador). O vídeo é guardado do jeito que foi gravado, no banco do próprio navegador (IndexedDB), com limite de 150 MB por vídeo (uns 2 minutos). Vídeos de **entrada** aparecem para o cliente no portal; na OS impressa sai uma nota com a quantidade de vídeos. Os vídeos não entram no backup em JSON.
+
 ## Fotos com marcação de defeitos
 
 Ao tirar uma foto na OS, abre um editor para desenhar sobre ela: caneta livre, círculo e seta, quatro cores, três espessuras, desfazer e limpar (dedo, caneta ou mouse). Qualquer foto pode ser marcada depois pelo botão ✎. Fotos tiradas enquanto a OS está **Aberta** ou **Em análise** ficam como **Entrada** (o cliente vê); depois disso, ficam como **Reparo** (só a equipe vê).

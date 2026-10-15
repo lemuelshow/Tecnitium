@@ -11,6 +11,7 @@ import { brl, num, fd, fdt, baixarCsv } from '../lib/format.js';
 import { Cabecalho, Pill, Modal, ModalTopo, IconeMais, IconeBusca, IconeBaixar, useAviso } from '../components/ui.jsx';
 import FormModal from '../components/FormModal.jsx';
 import FotoEditor from '../components/FotoEditor.jsx';
+import { LIMITE_VIDEO } from '../local/servidor.js';
 import * as E from '../entidades.jsx';
 
 export const TOM_OS = { 'Aberta': 'info', 'Em análise': 'info', 'Aguardando aprovação': 'warn', 'Aguardando peça': 'warn', 'Em reparo': 'info', 'Pronta': 'ready', 'Sem conserto': 'mute', 'Entregue': 'ok', 'Cancelada': 'mute' };
@@ -151,12 +152,20 @@ export function OSForm({ registro, L, cfg, onFechar }) {
   }));
 
   async function guardarFoto(arq) {
-    if (novo) setPendentes((p) => [...p, { arq, url: URL.createObjectURL(arq) }]);
+    if (novo) setPendentes((p) => [...p, { arq, url: URL.createObjectURL(arq), video: arq.type.startsWith('video/') }]);
     else {
       try { await enviarArquivo('/fotos', { osId: registro.id, foto: arq }); } catch (ex) { avisar(ex.message, true); }
     }
   }
   // Uma foto: abre o editor na hora para marcar o defeito. Varias: entram direto e podem ser marcadas depois (lapis).
+  // Videos: entram como estao (sem conversao), com limite de tamanho por arquivo.
+  async function adicionarVideos(lista) {
+    for (const v of [...lista]) {
+      if (v.size > LIMITE_VIDEO) { avisar(`O vídeo "${v.name || 'gravado'}" tem ${Math.round(v.size / 1048576)} MB; o limite é ${LIMITE_VIDEO / 1048576} MB. Grave um vídeo mais curto.`, true); continue; }
+      await guardarFoto(v);
+    }
+    if (!novo) recarregarFotos();
+  }
   async function adicionarFotos(lista) {
     const arquivos = [...lista];
     if (arquivos.length === 1) {
@@ -358,26 +367,37 @@ export function OSForm({ registro, L, cfg, onFechar }) {
                 <div className="f" style={{ marginTop: 10 }}><label htmlFor="f_formaPagamento">Forma de pagamento</label><select {...inp('formaPagamento')} onChange={(e) => set('formaPagamento', e.target.value || null)}><option value="">—</option>{FORMAS_PAGAMENTO.map((f) => <option key={f}>{f}</option>)}</select></div>
               </div>
               <div>
-                <h3>Fotos do aparelho</h3>
+                <h3>Fotos e vídeos do aparelho</h3>
                 <div className="fotos" style={{ marginTop: 8 }}>
                   {fotos.map((f) => (
-                    <figure key={f.id}><img src={f.url} alt="Foto do aparelho" onClick={() => setZoom(f.url)} />
-                      <span className={`momento ${(f.momento || 'Entrada') === 'Entrada' ? 'ent' : ''}`} title={(f.momento || 'Entrada') === 'Entrada' ? 'Foto de entrada: aparece para o cliente' : 'Foto do reparo: só a equipe vê'}>{f.momento || 'Entrada'}</span>
-                      <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarFoto(f)}>✎</button>
-                      {pode(['ADMIN', 'ATENDENTE']) ? <button type="button" className="rm" aria-label="Remover foto" onClick={() => removerFoto(f)}>×</button> : null}</figure>
+                    <figure key={f.id} className={f.tipo === 'video' ? 'eh-video' : ''}>
+                      {f.tipo === 'video'
+                        ? <><video src={f.url} muted playsInline preload="metadata" onClick={() => setZoom({ url: f.url, video: true })} /><span className="play" aria-hidden="true">▶</span></>
+                        : <img src={f.url} alt="Foto do aparelho" onClick={() => setZoom({ url: f.url })} />}
+                      <span className={`momento ${(f.momento || 'Entrada') === 'Entrada' ? 'ent' : ''}`} title={(f.momento || 'Entrada') === 'Entrada' ? 'Registro de entrada: aparece para o cliente' : 'Registro do reparo: só a equipe vê'}>{f.momento || 'Entrada'}</span>
+                      {f.tipo !== 'video' ? <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarFoto(f)}>✎</button> : null}
+                      {pode(['ADMIN', 'ATENDENTE']) ? <button type="button" className="rm" aria-label={f.tipo === 'video' ? 'Remover vídeo' : 'Remover foto'} onClick={() => removerFoto(f)}>×</button> : null}</figure>
                   ))}
                   {pendentes.map((p, i) => (
-                    <figure key={'p' + i}><img src={p.url} alt="Foto a enviar" onClick={() => setZoom(p.url)} />
-                      <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarPendente(i)}>✎</button>
-                      <button type="button" className="rm" aria-label="Remover foto" onClick={() => setPendentes((l) => l.filter((_, j) => j !== i))}>×</button><span className="pend">envia ao salvar</span></figure>
+                    <figure key={'p' + i} className={p.video ? 'eh-video' : ''}>
+                      {p.video
+                        ? <><video src={p.url} muted playsInline preload="metadata" onClick={() => setZoom({ url: p.url, video: true })} /><span className="play" aria-hidden="true">▶</span></>
+                        : <img src={p.url} alt="Foto a enviar" onClick={() => setZoom({ url: p.url })} />}
+                      {!p.video ? <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarPendente(i)}>✎</button> : null}
+                      <button type="button" className="rm" aria-label="Remover" onClick={() => setPendentes((l) => l.filter((_, j) => j !== i))}>×</button><span className="pend">envia ao salvar</span></figure>
                   ))}
                   <label className="add-foto">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
                     Adicionar foto
                     <input ref={arquivoRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => { adicionarFotos(e.target.files); e.target.value = ''; }} />
                   </label>
+                  <label className="add-foto">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="M16 10l5-3v10l-5-3z" /></svg>
+                    Gravar vídeo
+                    <input type="file" accept="video/*" capture="environment" hidden onChange={(e) => { adicionarVideos(e.target.files); e.target.value = ''; }} />
+                  </label>
                 </div>
-                <p className="sub" style={{ marginTop: 6 }}>No celular, abre a câmera. Depois de tirar a foto, desenhe para marcar os defeitos (ou toque no ✎ de qualquer foto). As fotos de <strong>entrada</strong> aparecem para o cliente no portal.</p>
+                <p className="sub" style={{ marginTop: 6 }}>No celular, abre a câmera. Depois de tirar a foto, desenhe para marcar os defeitos (ou toque no ✎ de qualquer foto). Vídeos de até {LIMITE_VIDEO / 1048576} MB (uns 2 minutos). Fotos e vídeos de <strong>entrada</strong> aparecem para o cliente no portal.</p>
               </div>
             </aside>
           </div>
@@ -389,7 +409,12 @@ export function OSForm({ registro, L, cfg, onFechar }) {
         </form>
       {rapido === 'cliente' ? <FormModal ent={E.clientes} L={L} onFechar={() => setRapido(null)} onSalvo={(c) => setForm((f) => ({ ...f, clienteId: c.id, aparelhoId: null }))} /> : null}
       {rapido === 'aparelho' ? <FormModal ent={E.aparelhos} L={L} preset={{ clienteId: form.clienteId }} onFechar={() => setRapido(null)} onSalvo={(a) => setForm((f) => ({ ...f, aparelhoId: a.id }))} /> : null}
-      {zoom ? <div className="zoom" onClick={() => setZoom(null)} role="dialog" aria-label="Foto ampliada"><img src={zoom} alt="Foto ampliada" /></div> : null}
+      {zoom ? (
+        <div className="zoom" onClick={(e) => e.target === e.currentTarget && setZoom(null)} role="dialog" aria-label={zoom.video ? 'Vídeo' : 'Foto ampliada'}>
+          {zoom.video ? <video src={zoom.url} controls autoPlay playsInline /> : <img src={zoom.url} alt="Foto ampliada" onClick={() => setZoom(null)} />}
+          <button type="button" className="zoom-fechar" onClick={() => setZoom(null)} aria-label="Fechar">×</button>
+        </div>
+      ) : null}
       {editor ? <FotoEditor src={editor.src} titulo={editor.titulo} onSalvar={editor.aoSalvar} onCancelar={editor.aoPular || (() => setEditor(null))} rotuloCancelar={editor.aoPular ? 'Sem marcar' : 'Cancelar'} /> : null}
     </Modal>
   );

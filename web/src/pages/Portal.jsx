@@ -142,15 +142,24 @@ function DetalhePortal() {
       </section>
 
       <section className="portal-sec">
-        <h2>Fotos do aparelho na entrada</h2>
+        <h2>Fotos e vídeos do aparelho na entrada</h2>
         {fotos.length ? (
-          <div className="portal-fotos">{fotos.map((f) => <button key={f.id} onClick={() => setZoom(f.url)} aria-label="Ampliar foto"><img src={f.url} alt="Foto do aparelho na entrada" /></button>)}</div>
-        ) : <p className="sub">Nenhuma foto registrada na entrada.</p>}
+          <div className="portal-fotos">{fotos.map((f) => (
+            <button key={f.id} onClick={() => setZoom({ url: f.url, video: f.tipo === 'video' })} aria-label={f.tipo === 'video' ? 'Assistir vídeo' : 'Ampliar foto'} className={f.tipo === 'video' ? 'eh-video' : ''}>
+              {f.tipo === 'video' ? <><video src={f.url} muted playsInline preload="metadata" /><span className="play" aria-hidden="true">▶</span></> : <img src={f.url} alt="Foto do aparelho na entrada" />}
+            </button>
+          ))}</div>
+        ) : <p className="sub">Nenhuma foto ou vídeo registrado na entrada.</p>}
       </section>
 
       <Link to={`/os/${os.id}/documento`} className="btn primary bloco">Ver ordem de serviço completa</Link>
       <Contato empresa={config} os={os} />
-      {zoom ? <div className="zoom" onClick={() => setZoom(null)} role="dialog" aria-label="Foto ampliada"><img src={zoom} alt="Foto ampliada" /></div> : null}
+      {zoom ? (
+        <div className="zoom" onClick={(e) => e.target === e.currentTarget && setZoom(null)} role="dialog" aria-label={zoom.video ? 'Vídeo' : 'Foto ampliada'}>
+          {zoom.video ? <video src={zoom.url} controls autoPlay playsInline /> : <img src={zoom.url} alt="Foto ampliada" onClick={() => setZoom(null)} />}
+          <button type="button" className="zoom-fechar" onClick={() => setZoom(null)} aria-label="Fechar">×</button>
+        </div>
+      ) : null}
     </>
   );
 }

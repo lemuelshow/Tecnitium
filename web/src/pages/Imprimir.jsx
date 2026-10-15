@@ -47,7 +47,12 @@ export function DocumentoOS({ os, cfg, cli, ap, tec, fotos = [], acesso }) {
       {acesso && !entregue && [11, 14].includes(String(cli.documento || '').replace(/\D/g, '').length) ? (
         <div className="blk"><h4>Acompanhe sua OS</h4>Acesse <strong>{window.location.origin}</strong>, toque em “Sou cliente” e use o seu CPF/CNPJ como login e como senha.</div>
       ) : null}
-      {fotos.length ? <div className="blk"><h4>Fotos do aparelho na entrada</h4><div className="fotos-p">{fotos.map((f) => <img key={f.id} src={f.url} alt="Foto do aparelho" />)}</div></div> : null}
+      {fotos.length ? (
+        <div className="blk"><h4>Fotos do aparelho na entrada</h4>
+          <div className="fotos-p">{fotos.filter((f) => f.tipo !== 'video').map((f) => <img key={f.id} src={f.url} alt="Foto do aparelho" />)}</div>
+          {fotos.some((f) => f.tipo === 'video') ? <p style={{ margin: '6px 0 0' }}>{fotos.filter((f) => f.tipo === 'video').length} vídeo(s) do estado de entrada registrado(s) no sistema.</p> : null}
+        </div>
+      ) : null}
       {cfg.termos ? <div className="blk"><h4>Termos</h4><div className="termos">{cfg.termos}</div></div> : null}
       <div className="ass"><div>{cfg.nomeEmpresa}</div><div>{cli.nome}{entregue ? ' (retirada)' : ' (entrega do aparelho)'}</div></div>
     </div>

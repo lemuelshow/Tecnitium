@@ -1,4 +1,5 @@
-// Fotos das OS no IndexedDB do navegador (cabe muito mais que o localStorage).
+// Fotos e videos das OS no IndexedDB do navegador (cabe muito mais que o localStorage).
+// Foto: guardada como data URL (ja reduzida). Video: guardado como arquivo (Blob), sem conversao.
 const NOME = 'tecnitium-fotos';
 
 function abrir() {
@@ -30,16 +31,30 @@ const paraDataUrl = (arquivo) => new Promise((ok, erro) => {
   fr.readAsDataURL(arquivo);
 });
 
+// Endereco temporario para tocar o video na tela (um por video, reaproveitado).
+const urlsVideo = new Map();
+function comUrl(item) {
+  if (item?.tipo !== 'video' || !item.blob) return item;
+  if (!urlsVideo.has(item.id)) urlsVideo.set(item.id, URL.createObjectURL(item.blob));
+  const { blob, ...resto } = item;
+  return { ...resto, url: urlsVideo.get(item.id) };
+}
+
 export async function listarFotos(osId) {
   const todas = await operar('readonly', (s) => s.index('osId').getAll(osId));
-  return (todas || []).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
+  return (todas || []).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm)).map(comUrl);
 }
 
 // momento: 'Entrada' (foto do estado em que o aparelho chegou, visivel ao cliente) ou 'Reparo'.
 export async function salvarFoto(osId, arquivo, legenda, momento = 'Entrada') {
-  const foto = { id: crypto.randomUUID(), osId, url: await paraDataUrl(arquivo), legenda: legenda || null, momento, criadoEm: new Date().toISOString() };
-  await operar('readwrite', (s) => s.put(foto));
-  return foto;
+  const base = { id: crypto.randomUUID(), osId, legenda: legenda || null, momento, criadoEm: new Date().toISOString() };
+  const item = arquivo.type.startsWith('video/')
+    ? { ...base, tipo: 'video', blob: arquivo, mime: arquivo.type, tamanho: arquivo.size, nome: arquivo.name || 'video' }
+    : { ...base, tipo: 'foto', url: await paraDataUrl(arquivo) };
+  await operar('readwrite', (s) => s.put(item));
+  // Pede ao navegador para nao apagar esses arquivos quando faltar espaco.
+  if (item.tipo === 'video') navigator.storage?.persist?.().catch(() => {});
+  return comUrl(item);
 }
 
 export const obterFoto = (id) => operar('readonly', (s) => s.get(id));
@@ -52,7 +67,10 @@ export async function atualizarFoto(id, arquivo) {
   await operar('readwrite', (s) => s.put(nova));
   return nova;
 }
-export const apagarFoto = (id) => operar('readwrite', (s) => s.delete(id));
+export const apagarFoto = (id) => {
+  if (urlsVideo.has(id)) { URL.revokeObjectURL(urlsVideo.get(id)); urlsVideo.delete(id); }
+  return operar('readwrite', (s) => s.delete(id));
+};
 
 export async function apagarFotosDaOS(osId) {
   for (const f of await listarFotos(osId)) await apagarFoto(f.id);

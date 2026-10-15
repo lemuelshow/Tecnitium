@@ -553,3 +553,10 @@ input[type=date]::-webkit-datetime-edit,input[type=datetime-local]::-webkit-date
 .explica strong{color:var(--ink)}
 details summary{cursor:pointer}
 
+
+/* ---------- videos na OS e no portal ---------- */
+.fotos figure video,.portal-fotos video{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;background:#000}
+.eh-video{position:relative}
+.eh-video .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;padding-left:3px;pointer-events:none}
+.zoom video{max-width:100%;max-height:100%;border-radius:6px;background:#000}
+.zoom-fechar{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:26px;line-height:1;cursor:pointer}
