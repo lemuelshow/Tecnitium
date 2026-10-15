@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { brl, num, fd, fdt, baixarCsv } from '../lib/format.js';
 import { Cabecalho, Pill, Modal, ModalTopo, IconeMais, IconeBusca, IconeBaixar, useAviso } from '../components/ui.jsx';
 import FormModal from '../components/FormModal.jsx';
+import FotoEditor from '../components/FotoEditor.jsx';
 import * as E from '../entidades.jsx';
 
 export const TOM_OS = { 'Aberta': 'info', 'Em análise': 'info', 'Aguardando aprovação': 'warn', 'Aguardando peça': 'warn', 'Em reparo': 'info', 'Pronta': 'ready', 'Sem conserto': 'mute', 'Entregue': 'ok', 'Cancelada': 'mute' };
@@ -31,7 +32,8 @@ export function mensagemPronta(os, cliente, aparelho, cfg) {
   const pronta = os.status === 'Pronta';
   return `Olá, ${nome}! Aqui é da ${cfg.nomeEmpresa || 'assistência técnica'}. ` +
     (pronta ? `Seu ${aparelho?.marca || ''} ${aparelho?.modelo || ''} (OS ${numeroOS(os.numero)}) está pronto para retirada.` : `A avaliação do seu ${aparelho?.marca || ''} ${aparelho?.modelo || ''} (OS ${numeroOS(os.numero)}) foi concluída e ele já pode ser retirado.`) +
-    (t.saldo > 0 ? ` Valor a pagar: ${brl(t.saldo)}.` : '') + (cfg.endereco ? ` Endereço: ${cfg.endereco}.` : '') + ' Obrigado!';
+    (t.saldo > 0 ? ` Valor a pagar: ${brl(t.saldo)}.` : '') + (cfg.endereco ? ` Endereço: ${cfg.endereco}.` : '') +
+    (cliente?.codigoAcesso ? ` Acompanhe suas OS em ${window.location.origin}/?cliente (toque em "Sou cliente", use seu telefone e o código ${cliente.codigoAcesso}).` : '') + ' Obrigado!';
 }
 
 export default function Ordens() {
@@ -128,6 +130,7 @@ export function OSForm({ registro, L, cfg, onFechar }) {
   const [confirmar, setConfirmar] = useState(false);
   const [zoom, setZoom] = useState(null);
   const [pendentes, setPendentes] = useState([]); // fotos ainda nao enviadas (OS nova)
+  const [editor, setEditor] = useState(null); // { src, aoSalvar(arquivo), aoPular?, titulo }
   const { data: fotos = [], refetch: recarregarFotos } = useQuery({ queryKey: ['fotos', registro?.id], queryFn: () => api('/fotos?osId=' + registro.id), enabled: !novo });
   const arquivoRef = useRef();
 
@@ -147,15 +150,42 @@ export function OSForm({ registro, L, cfg, onFechar }) {
     return n;
   }));
 
-  async function adicionarFotos(lista) {
-    for (const f of [...lista]) {
-      const arq = await comprimirImagem(f);
-      if (novo) setPendentes((p) => [...p, { arq, url: URL.createObjectURL(arq) }]);
-      else {
-        try { await enviarArquivo('/fotos', { osId: registro.id, foto: arq }); } catch (ex) { avisar(ex.message, true); }
-      }
+  async function guardarFoto(arq) {
+    if (novo) setPendentes((p) => [...p, { arq, url: URL.createObjectURL(arq) }]);
+    else {
+      try { await enviarArquivo('/fotos', { osId: registro.id, foto: arq }); } catch (ex) { avisar(ex.message, true); }
     }
+  }
+  // Uma foto: abre o editor na hora para marcar o defeito. Varias: entram direto e podem ser marcadas depois (lapis).
+  async function adicionarFotos(lista) {
+    const arquivos = [...lista];
+    if (arquivos.length === 1) {
+      const arq = await comprimirImagem(arquivos[0]);
+      const src = URL.createObjectURL(arq);
+      setEditor({
+        src, titulo: 'Marque os pontos de defeito',
+        aoSalvar: async (marcada) => { setEditor(null); await guardarFoto(marcada); if (!novo) recarregarFotos(); },
+        aoPular: async () => { setEditor(null); await guardarFoto(arq); if (!novo) recarregarFotos(); },
+      });
+      return;
+    }
+    for (const f of arquivos) await guardarFoto(await comprimirImagem(f));
     if (!novo) recarregarFotos();
+  }
+  function editarFoto(f) {
+    setEditor({
+      src: f.url, titulo: 'Marcar defeitos na foto',
+      aoSalvar: async (marcada) => {
+        setEditor(null);
+        try { await api('/fotos/' + f.id, { method: 'PUT', body: { foto: marcada } }); recarregarFotos(); qc.invalidateQueries({ queryKey: ['portal'] }); avisar('Marcações salvas na foto.'); } catch (ex) { avisar(ex.message, true); }
+      },
+    });
+  }
+  function editarPendente(i) {
+    setEditor({
+      src: pendentes[i].url, titulo: 'Marcar defeitos na foto',
+      aoSalvar: (marcada) => { setEditor(null); setPendentes((l) => l.map((p, j) => (j === i ? { arq: marcada, url: URL.createObjectURL(marcada) } : p))); },
+    });
   }
   async function removerFoto(f) {
     try { await api('/fotos/' + f.id, { method: 'DELETE' }); recarregarFotos(); } catch (ex) { avisar(ex.message, true); }
@@ -332,10 +362,13 @@ export function OSForm({ registro, L, cfg, onFechar }) {
                 <div className="fotos" style={{ marginTop: 8 }}>
                   {fotos.map((f) => (
                     <figure key={f.id}><img src={f.url} alt="Foto do aparelho" onClick={() => setZoom(f.url)} />
+                      <span className={`momento ${(f.momento || 'Entrada') === 'Entrada' ? 'ent' : ''}`} title={(f.momento || 'Entrada') === 'Entrada' ? 'Foto de entrada: aparece para o cliente' : 'Foto do reparo: só a equipe vê'}>{f.momento || 'Entrada'}</span>
+                      <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarFoto(f)}>✎</button>
                       {pode(['ADMIN', 'ATENDENTE']) ? <button type="button" className="rm" aria-label="Remover foto" onClick={() => removerFoto(f)}>×</button> : null}</figure>
                   ))}
                   {pendentes.map((p, i) => (
                     <figure key={'p' + i}><img src={p.url} alt="Foto a enviar" onClick={() => setZoom(p.url)} />
+                      <button type="button" className="ed" aria-label="Desenhar na foto" title="Marcar defeitos" onClick={() => editarPendente(i)}>✎</button>
                       <button type="button" className="rm" aria-label="Remover foto" onClick={() => setPendentes((l) => l.filter((_, j) => j !== i))}>×</button><span className="pend">envia ao salvar</span></figure>
                   ))}
                   <label className="add-foto">
@@ -344,7 +377,7 @@ export function OSForm({ registro, L, cfg, onFechar }) {
                     <input ref={arquivoRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => { adicionarFotos(e.target.files); e.target.value = ''; }} />
                   </label>
                 </div>
-                <p className="sub" style={{ marginTop: 6 }}>No celular, abre a câmera. Registre o estado do aparelho na entrada.</p>
+                <p className="sub" style={{ marginTop: 6 }}>No celular, abre a câmera. Depois de tirar a foto, desenhe para marcar os defeitos (ou toque no ✎ de qualquer foto). As fotos de <strong>entrada</strong> aparecem para o cliente no portal.</p>
               </div>
             </aside>
           </div>
@@ -357,6 +390,7 @@ export function OSForm({ registro, L, cfg, onFechar }) {
       {rapido === 'cliente' ? <FormModal ent={E.clientes} L={L} onFechar={() => setRapido(null)} onSalvo={(c) => setForm((f) => ({ ...f, clienteId: c.id, aparelhoId: null }))} /> : null}
       {rapido === 'aparelho' ? <FormModal ent={E.aparelhos} L={L} preset={{ clienteId: form.clienteId }} onFechar={() => setRapido(null)} onSalvo={(a) => setForm((f) => ({ ...f, aparelhoId: a.id }))} /> : null}
       {zoom ? <div className="zoom" onClick={() => setZoom(null)} role="dialog" aria-label="Foto ampliada"><img src={zoom} alt="Foto ampliada" /></div> : null}
+      {editor ? <FotoEditor src={editor.src} titulo={editor.titulo} onSalvar={editor.aoSalvar} onCancelar={editor.aoPular || (() => setEditor(null))} rotuloCancelar={editor.aoPular ? 'Sem marcar' : 'Cancelar'} /> : null}
     </Modal>
   );
 }

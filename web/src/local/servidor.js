@@ -1,11 +1,11 @@
 // "Servidor" que roda dentro do navegador: recebe as mesmas rotas que a API Node recebia
 // (/ordens, /painel, /comissoes...) e responde com os dados do localStorage.
-import { OS_EM_BANCADA, OS_PARA_RETIRAR, hoje, mesDe, isoDate, totaisOS, situacaoPrazo, numeroOS } from '@tecnitium/shared';
+import { OS_EM_BANCADA, OS_PARA_RETIRAR, hoje, mesDe, isoDate, totaisOS, situacaoPrazo, numeroOS, identificaCliente, normalizarCodigo, etapasOS, gerarCodigoAcesso } from '@tecnitium/shared';
 import { HttpError, falha } from './erros.js';
 import { banco, transacao, carregar, bancoVazio, hashSenha, exportarBanco, importarBanco, limparBanco } from './banco.js';
 import { recursos, lerConfig } from './recursos.js';
 import { carregarExemplos } from './exemplos.js';
-import { listarFotos, salvarFoto, obterFoto, apagarFoto, apagarTodasFotos } from './fotos.js';
+import { listarFotos, salvarFoto, obterFoto, apagarFoto, apagarTodasFotos, atualizarFoto } from './fotos.js';
 
 const SESSAO = 'tecnitium:sessao';
 const PERFIS = { ADMIN: 'Administrador', ATENDENTE: 'Atendente', TECNICO: 'Técnico' };
@@ -16,14 +16,28 @@ const exigir = (usuario, perfis) => { if (!perfis.includes(usuario.perfil)) thro
 // Na primeira abertura, carrega os dados de exemplo.
 let preparando = null;
 async function preparar() {
-  if (!bancoVazio()) return;
-  preparando ||= transacao(() => carregarExemplos(true)).finally(() => { preparando = null; });
-  await preparando;
+  if (bancoVazio()) {
+    preparando ||= transacao(() => carregarExemplos(true)).finally(() => { preparando = null; });
+    await preparando;
+  }
+  // Migracao: clientes criados antes do portal ganham um codigo de acesso.
+  if (carregar().cliente.some((c) => !c.codigoAcesso)) {
+    await transacao(async (tx) => {
+      for (const c of await tx.cliente.findMany()) if (!c.codigoAcesso) await tx.cliente.update({ where: { id: c.id }, data: { codigoAcesso: gerarCodigoAcesso() } });
+    });
+  }
 }
 
 async function usuarioLogado() {
-  let id = null;
-  try { id = JSON.parse(localStorage.getItem(SESSAO))?.usuario?.id; } catch { /* sem sessao */ }
+  let sessao = null;
+  try { sessao = JSON.parse(localStorage.getItem(SESSAO))?.usuario; } catch { /* sem sessao */ }
+  if (sessao?.perfil === 'CLIENTE') {
+    // Cliente: vale enquanto o codigo de acesso nao mudar.
+    const c = await banco.cliente.findUnique({ where: { id: sessao.clienteId } });
+    if (!c || normalizarCodigo(c.codigoAcesso) !== sessao.codigo) throw new HttpError(401, 'Seu acesso expirou. Entre de novo com o telefone e o código.');
+    return { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome };
+  }
+  const id = sessao?.id;
   const u = id && (await banco.usuario.findUnique({ where: { id } }));
   if (!u || !u.ativo) throw new HttpError(401, 'Faça login para continuar.');
   return u;
@@ -38,7 +52,13 @@ export async function servidor(method, caminho, corpo) {
   const body = corpo == null ? {} : corpo;
 
   if (base === 'auth' && id === 'login' && method === 'POST') return login(body);
+  if (base === 'auth' && id === 'cliente' && method === 'POST') return loginCliente(body);
   const usuario = await usuarioLogado();
+  // O cliente so enxerga o portal (as proprias OS); nada do restante do sistema.
+  if (usuario.perfil === 'CLIENTE') {
+    if (base === 'portal' && method === 'GET') return portal(usuario, id, sub);
+    throw new HttpError(403, 'Acesso restrito ao acompanhamento das suas ordens de serviço.');
+  }
   if (base === 'auth' && id === 'senha') return trocarSenha(usuario, body);
   if (base === 'usuarios') return usuarios(method, id, body, usuario);
   if (base === 'config') return config(method, body, usuario);
@@ -56,6 +76,40 @@ async function login({ email, senha }) {
   const u = await banco.usuario.findUnique({ where: { email: String(email).trim().toLowerCase() } });
   if (!u || !u.ativo || u.senhaHash !== (await hashSenha(u.email, String(senha)))) throw new HttpError(401, 'E-mail ou senha incorretos.');
   return { token: 'local', usuario: publico(u) };
+}
+
+async function loginCliente({ identificador, codigo }) {
+  if (!identificador || !codigo) throw falha('Informe o telefone (ou CPF) e o código de acesso.');
+  const cod = normalizarCodigo(codigo);
+  const c = (await banco.cliente.findMany()).find((x) => normalizarCodigo(x.codigoAcesso) === cod && identificaCliente(x, identificador));
+  if (!c) throw new HttpError(401, 'Telefone/CPF ou código de acesso incorretos. O código está na sua OS ou pode ser pedido à loja.');
+  return { token: 'local', usuario: { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome, codigo: cod } };
+}
+
+// ---------- portal do cliente ----------
+const paraCliente = (o) => {
+  const os = { ...o, itens: JSON.parse(o.itens || '[]').map(({ custo, pecaId, ...i }) => i), historico: JSON.parse(o.historico || '[]') };
+  for (const k of ['obs', 'regime', 'percPeca', 'percServico', 'comissaoPeca', 'comissaoServico', 'atendenteId']) delete os[k];
+  return os;
+};
+async function portal(usuario, id, sub) {
+  const cfg = await transacao((tx) => lerConfig(tx));
+  const empresa = { nomeEmpresa: cfg.nomeEmpresa, documento: cfg.documento, telefone: cfg.telefone, whatsapp: cfg.whatsapp, endereco: cfg.endereco, termos: cfg.termos };
+  const cliente = await banco.cliente.findUnique({ where: { id: usuario.clienteId } });
+  const { codigoAcesso, obs, ...clientePublico } = cliente;
+  const aparelhos = Object.fromEntries((await banco.aparelho.findMany({ where: { clienteId: cliente.id } })).map(({ senha, obs: o, ...a }) => [a.id, a]));
+  const ordens = (await banco.ordemServico.findMany({ where: { clienteId: cliente.id }, orderBy: { numero: 'desc' } })).map(paraCliente);
+  if (!id) {
+    return {
+      cliente: { nome: cliente.nome }, empresa,
+      ordens: ordens.map((o) => ({ id: o.id, numero: o.numero, status: o.status, entrada: o.entrada, prazo: o.prazo, dataPronta: o.dataPronta, dataEntrega: o.dataEntrega, defeito: o.defeito, aparelho: aparelhos[o.aparelhoId], total: totaisOS(o).total, saldo: totaisOS(o).saldo, etapas: etapasOS(o) })),
+    };
+  }
+  const os = ordens.find((o) => o.id === id);
+  if (!os) throw new HttpError(404, 'Ordem de serviço não encontrada.');
+  const tec = os.tecnicoId ? await banco.tecnico.findUnique({ where: { id: os.tecnicoId } }) : null;
+  const fotos = (await listarFotos(os.id)).filter((f) => (f.momento || 'Entrada') === 'Entrada');
+  return { os, cliente: clientePublico, aparelho: aparelhos[os.aparelhoId], tecnico: tec ? { nome: tec.nome } : null, config: empresa, fotos, etapas: etapasOS(os) };
 }
 
 async function trocarSenha(usuario, { atual, nova }) {
@@ -187,8 +241,18 @@ async function fotos(method, id, b, query, usuario) {
     if (!(arq instanceof Blob)) throw falha('Nenhuma imagem recebida.');
     if (!/^image\//.test(arq.type)) throw falha('Envie uma imagem JPG, PNG ou WEBP.');
     if (arq.size > 5 * 1024 * 1024) throw falha('A imagem passa de 5 MB.');
-    if (!(await banco.ordemServico.findUnique({ where: { id: String(b.osId || '') } }))) throw new HttpError(404, 'OS não encontrada.');
-    return salvarFoto(b.osId, arq, b.legenda);
+    const os = await banco.ordemServico.findUnique({ where: { id: String(b.osId || '') } });
+    if (!os) throw new HttpError(404, 'OS não encontrada.');
+    // Foto de entrada (o cliente ve) enquanto a OS ainda nao entrou em reparo; depois, foto do reparo.
+    const momento = b.momento || (['Aberta', 'Em análise'].includes(os.status) ? 'Entrada' : 'Reparo');
+    return salvarFoto(b.osId, arq, b.legenda, momento);
+  }
+  if (method === 'PUT') {
+    const arq = b.foto;
+    if (!(arq instanceof Blob) || !/^image\//.test(arq.type)) throw falha('Imagem inválida.');
+    const f = await atualizarFoto(id, arq);
+    if (!f) throw new HttpError(404, 'Foto não encontrada.');
+    return f;
   }
   if (method === 'DELETE') {
     exigir(usuario, ['ADMIN', 'ATENDENTE']);

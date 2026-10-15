@@ -12,7 +12,7 @@ const PADROES = {
   tecnico: { regime: 'Comissão', salario: 0, percPeca: 0, percServico: 0, ativo: true },
   peca: { unidade: 'un', quantidade: 0, minimo: 0, custo: 0, preco: 0, ativo: true },
   movEstoque: { automatico: false, osId: null },
-  ordemServico: { prioridade: 'Normal', status: 'Aberta', itens: '[]', desconto: 0, valorPago: 0, comissaoPeca: 0, comissaoServico: 0 },
+  ordemServico: { prioridade: 'Normal', status: 'Aberta', itens: '[]', historico: '[]', desconto: 0, valorPago: 0, comissaoPeca: 0, comissaoServico: 0 },
 };
 const UNICOS = { usuario: ['email'], peca: ['codigo'], ordemServico: ['numero'] };
 

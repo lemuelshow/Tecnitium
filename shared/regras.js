@@ -76,3 +76,47 @@ export function linkWhatsapp(fone, texto) {
   if (n.length <= 11) n = '55' + n;
   return `https://wa.me/${n}?text=${encodeURIComponent(texto)}`;
 }
+
+// ---------- portal do cliente ----------
+// Codigo de acesso do cliente (sem letras/numeros que se confundem: 0/O, 1/I/L).
+const ALFABETO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function gerarCodigoAcesso() {
+  const v = new Uint32Array(6);
+  (globalThis.crypto || {}).getRandomValues?.(v);
+  return [...v].map((n, i) => ALFABETO[(n || Math.floor(Math.random() * 1e9) + i) % ALFABETO.length]).join('');
+}
+export const normalizarCodigo = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// O cliente se identifica pelo telefone/WhatsApp ou pelo CPF/CNPJ.
+export function identificaCliente(cliente, entrada) {
+  const d = somenteDigitos(entrada);
+  if (d.length < 8) return false;
+  const doc = somenteDigitos(cliente.documento);
+  if (doc && doc === d) return true;
+  return [cliente.whatsapp, cliente.telefone].map(somenteDigitos).filter((f) => f.length >= 8).some((f) => f === d || f.endsWith(d) || d.endsWith(f));
+}
+
+// Etapas da linha do tempo mostrada ao cliente.
+export function etapasOS(os) {
+  const hist = os.historico || [];
+  const quando = (lista) => hist.find((h) => lista.includes(h.status))?.data || null;
+  const EM_MANUT = ['Em análise', 'Aguardando aprovação', 'Aguardando peça', 'Em reparo'];
+  const s = os.status;
+  const ordem = { 'Aberta': 1, 'Em análise': 2, 'Aguardando aprovação': 2, 'Aguardando peça': 2, 'Em reparo': 2, 'Pronta': 3, 'Sem conserto': 3, 'Entregue': 4, 'Cancelada': 0 };
+  const atual = ordem[s] ?? 1;
+  const detalhe = {
+    'Em análise': 'O técnico está avaliando o aparelho.',
+    'Aguardando aprovação': 'Orçamento pronto: aguardando a sua aprovação.',
+    'Aguardando peça': 'Aguardando a chegada da peça para o reparo.',
+    'Em reparo': 'O conserto está sendo feito na bancada.',
+    'Pronta': 'Serviço concluído. O aparelho já pode ser retirado.',
+    'Sem conserto': 'Avaliação concluída sem reparo. O aparelho já pode ser retirado.',
+  };
+  const etapas = [
+    { chave: 'recebido', titulo: 'Aparelho recebido', data: os.entrada, texto: 'Recebemos o aparelho e registramos o estado de entrada.' },
+    { chave: 'manutencao', titulo: 'Em manutenção', data: quando(EM_MANUT), texto: atual === 2 ? detalhe[s] : 'Avaliação e reparo na bancada.' },
+    { chave: 'concluido', titulo: s === 'Sem conserto' ? 'Avaliação concluída' : 'Serviço concluído', data: os.dataPronta || quando(['Pronta', 'Sem conserto']), texto: atual === 3 ? detalhe[s] : 'Pronto para retirada.' },
+    { chave: 'entregue', titulo: 'Aparelho retirado', data: os.dataEntrega, texto: os.retiradoPor ? `Retirado por ${os.retiradoPor}.` : 'Entregue ao cliente.' },
+  ];
+  return etapas.map((e, i) => ({ ...e, feito: atual > i + 1 || (atual === 4 && i === 3), atual: s !== 'Cancelada' && atual === i + 1 && atual !== 4 }));
+}

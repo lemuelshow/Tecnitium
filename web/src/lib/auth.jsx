@@ -19,12 +19,19 @@ export function AuthProvider({ children }) {
     setSessao(s);
   }, []);
 
+  const entrarCliente = useCallback(async (identificador, codigo) => {
+    const s = await api('/auth/cliente', { method: 'POST', body: { identificador, codigo } });
+    gravarSessao(s);
+    setSessao(s);
+  }, []);
+
   const valor = useMemo(() => ({
     usuario: sessao?.usuario || null,
     entrar,
+    entrarCliente,
     sair,
     pode: (perfis) => !perfis || perfis.includes(sessao?.usuario?.perfil),
-  }), [sessao, entrar, sair]);
+  }), [sessao, entrar, entrarCliente, sair]);
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }

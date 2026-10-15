@@ -2,7 +2,7 @@
 // As regras rodam dentro da mesma transacao da gravacao (ctx.tx); se algo falhar, nada e gravado.
 import {
   OS_STATUS, OS_PARA_RETIRAR, TIPOS_APARELHO, FORMAS_PAGAMENTO,
-  hoje, isoDateTime, somarDias, calcularComissao, pecasDaOS, numeroOS,
+  hoje, isoDateTime, somarDias, calcularComissao, pecasDaOS, numeroOS, gerarCodigoAcesso, normalizarCodigo,
 } from '@tecnitium/shared';
 import { falha } from './erros.js';
 import { apagarFotosDaOS } from './fotos.js';
@@ -45,9 +45,15 @@ export const recursos = {
     modelo: 'cliente', ordem: { nome: 'asc' }, escrita: BALCAO,
     campos: {
       nome: txt('o nome', req), documento: txt('CPF/CNPJ'), telefone: txt('Telefone'), whatsapp: txt('WhatsApp'), email: txt('E-mail'),
-      cep: txt('CEP'), endereco: txt('Endereço'), cidade: txt('Cidade'), uf: txt('UF'), obs: txt('Observações'),
+      cep: txt('CEP'), endereco: txt('Endereço'), cidade: txt('Cidade'), uf: txt('UF'), obs: txt('Observações'), codigoAcesso: txt('Código de acesso'),
     },
     validar(d) { if (!d.telefone && !d.whatsapp) throw falha('Informe ao menos um telefone ou WhatsApp para avisar o cliente.', 'telefone'); },
+    // Codigo que o cliente usa, junto com o telefone ou CPF, para acompanhar as OS no portal.
+    antes(d, { novo, final }) {
+      const c = normalizarCodigo(final.codigoAcesso);
+      if (c && c.length < 4) throw falha('O código de acesso precisa ter ao menos 4 letras ou números.', 'codigoAcesso');
+      if (c) d.codigoAcesso = c; else if (novo || !final.codigoAcesso) d.codigoAcesso = gerarCodigoAcesso();
+    },
     async aoExcluir(c, { tx }) {
       if (await tx.ordemServico.count({ where: { clienteId: c.id } })) throw falha('Este cliente tem ordens de serviço e não pode ser excluído.');
       await tx.aparelho.deleteMany({ where: { clienteId: c.id } });
@@ -153,6 +159,7 @@ export const recursos = {
       diagnostico: txt('Diagnóstico'), servicoExecutado: txt('Serviço executado'), itens: json('Peças e serviços'), desconto: num('Desconto'),
       valorPago: num('Valor pago'), formaPagamento: txt('Forma de pagamento', { opcoes: FORMAS_PAGAMENTO }), garantiaDias: int('Garantia'),
       dataPronta: txt('Data em que ficou pronta'), dataEntrega: txt('Data da retirada'), retiradoPor: txt('Retirado por'), obs: txt('Observações'),
+      historico: json('Histórico'),
     },
     async validar(d, { tx }) {
       const a = await tx.aparelho.findUnique({ where: { id: d.aparelhoId } });
@@ -179,6 +186,13 @@ export const recursos = {
         if (i.tipo === 'Peça' && i.pecaId && i.custo == null) i.custo = (await tx.peca.findUnique({ where: { id: i.pecaId } }))?.custo ?? 0;
       }
       d.itens = JSON.stringify(itens);
+
+      // Historico de situacoes (alimenta a linha do tempo do cliente). Sempre calculado aqui, nunca vem da tela.
+      const hist = novo ? [] : [...(atual.historico || [])];
+      if (!hist.length) hist.push({ status: novo ? final.status : 'Aberta', data: final.entrada });
+      if (!novo && atual.status !== final.status) hist.push({ status: final.status, data: isoDateTime() });
+      if (novo && final.status !== 'Aberta' && hist[0].status !== final.status) hist.push({ status: final.status, data: isoDateTime() });
+      d.historico = JSON.stringify(hist);
       const fin = { ...final, itens };
 
       if (OS_PARA_RETIRAR.includes(fin.status) && !fin.dataPronta) d.dataPronta = hoje();

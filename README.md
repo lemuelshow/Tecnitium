@@ -12,6 +12,24 @@ Cada navegador tem os seus próprios dados. Em **Configurações → Dados deste
 
 Tecnologias: React 18, Vite, React Router, TanStack Query e Recharts.
 
+## Portal do cliente
+
+Na tela de login, a aba **Sou cliente** pede o telefone/WhatsApp (ou CPF) e o **código de acesso** do cliente. O código é gerado no cadastro do cliente, sai impresso na OS e vai na mensagem de WhatsApp de aparelho pronto. O link `/?cliente` já abre nessa aba.
+
+O cliente vê somente:
+
+- a **linha do tempo** de cada OS: recebido → em manutenção → concluído → retirado, com datas e o que está acontecendo agora (ex.: aguardando peça, aguardando aprovação);
+- as **fotos do aparelho na entrada** (com as marcações de defeito feitas pela equipe);
+- a **OS completa** de cada serviço, para ver, imprimir ou salvar em PDF.
+
+Custos das peças, comissões, observações internas e a senha do aparelho não aparecem para o cliente. Exemplo para testar: telefone `(11) 99123-4501` e código `ACP501`.
+
+**Atenção nesta versão sem servidor:** os dados ficam no navegador da loja. O portal funciona no mesmo aparelho (ex.: tablet no balcão). Para o cliente acompanhar do próprio celular, é preciso voltar a ter um back-end (as rotas `/portal` já estão separadas em `web/src/local/servidor.js`).
+
+## Fotos com marcação de defeitos
+
+Ao tirar uma foto na OS, abre um editor para desenhar sobre ela: caneta livre, círculo e seta, quatro cores, três espessuras, desfazer e limpar (dedo, caneta ou mouse). Qualquer foto pode ser marcada depois pelo botão ✎. Fotos tiradas enquanto a OS está **Aberta** ou **Em análise** ficam como **Entrada** (o cliente vê); depois disso, ficam como **Reparo** (só a equipe vê).
+
 ## No celular: funciona como aplicativo
 
 - **Instalável (PWA):** no Android/Chrome aparece o botão **Instalar** (barra superior e menu **Mais**); no iPhone, Safari → Compartilhar → **Adicionar à Tela de Início**. Abre em tela cheia, com ícone próprio e atalhos (Nova OS, Ordens de serviço, Estoque) ao segurar o ícone.

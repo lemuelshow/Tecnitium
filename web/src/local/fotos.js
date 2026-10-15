@@ -35,13 +35,23 @@ export async function listarFotos(osId) {
   return (todas || []).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
 }
 
-export async function salvarFoto(osId, arquivo, legenda) {
-  const foto = { id: crypto.randomUUID(), osId, url: await paraDataUrl(arquivo), legenda: legenda || null, criadoEm: new Date().toISOString() };
+// momento: 'Entrada' (foto do estado em que o aparelho chegou, visivel ao cliente) ou 'Reparo'.
+export async function salvarFoto(osId, arquivo, legenda, momento = 'Entrada') {
+  const foto = { id: crypto.randomUUID(), osId, url: await paraDataUrl(arquivo), legenda: legenda || null, momento, criadoEm: new Date().toISOString() };
   await operar('readwrite', (s) => s.put(foto));
   return foto;
 }
 
 export const obterFoto = (id) => operar('readonly', (s) => s.get(id));
+
+// Substitui a imagem (ex.: depois de desenhar as marcacoes do defeito).
+export async function atualizarFoto(id, arquivo) {
+  const f = await obterFoto(id);
+  if (!f) return null;
+  const nova = { ...f, url: await paraDataUrl(arquivo), editadoEm: new Date().toISOString() };
+  await operar('readwrite', (s) => s.put(nova));
+  return nova;
+}
 export const apagarFoto = (id) => operar('readwrite', (s) => s.delete(id));
 
 export async function apagarFotosDaOS(osId) {

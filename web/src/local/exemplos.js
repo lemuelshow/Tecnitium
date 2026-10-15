@@ -50,7 +50,11 @@ async function exemplos() {
     gabriela: { nome: 'Gabriela Nunes', whatsapp: '(11) 99123-4506', cidade: 'São Paulo', uf: 'SP' },
     henrique: { nome: 'Henrique Batista', whatsapp: '(11) 99123-4507', cidade: 'Osasco', uf: 'SP' },
     julia: { nome: 'Júlia Ferraz', whatsapp: '(11) 99123-4508', cidade: 'São Paulo', uf: 'SP' },
-  })) clientes[k] = await prisma.cliente.create({ data: d });
+  })) {
+    // Codigo de acesso do portal: iniciais + final do WhatsApp (ex.: Ana Carolina Prado -> ACP501).
+    const ini = d.nome.split(' ').filter((p) => p.length > 2).map((p) => p[0]).join('').slice(0, 3).toUpperCase();
+    clientes[k] = await prisma.cliente.create({ data: { ...d, codigoAcesso: ini + d.whatsapp.replace(/\D/g, '').slice(-3) } });
+  }
 
   const ap = {};
   for (const [k, c, d] of [
@@ -130,7 +134,13 @@ async function exemplos() {
       const c = calcularComissao(os, ref, 'Venda');
       Object.assign(os, ref, { comissaoPeca: c.peca, comissaoServico: c.servico });
     }
-    const criada = await prisma.ordemServico.create({ data: { ...os, itens: JSON.stringify(os.itens) } });
+    // Historico plausivel das mudancas de situacao, para a linha do tempo do portal.
+    const dia = (dt, n, hora) => { const x = new Date(dt.slice(0, 10) + 'T12:00'); x.setDate(x.getDate() + n); return isoDate(x) + 'T' + hora; };
+    const hist = [{ status: 'Aberta', data: os.entrada }];
+    if (os.status !== 'Aberta') hist.push({ status: ['Aguardando peça', 'Aguardando aprovação', 'Em análise'].includes(os.status) ? os.status : 'Em reparo', data: dia(os.entrada, 1, '09:30') });
+    if (os.dataPronta) hist.push({ status: os.status === 'Sem conserto' ? 'Sem conserto' : 'Pronta', data: os.dataPronta + 'T16:40' });
+    if (os.dataEntrega) hist.push({ status: 'Entregue', data: os.dataEntrega + 'T11:15' });
+    const criada = await prisma.ordemServico.create({ data: { ...os, itens: JSON.stringify(os.itens), historico: JSON.stringify(hist) } });
     for (const i of o.itens.filter((x) => x.tipo === 'Peça')) {
       usado[i.pecaId] = (usado[i.pecaId] || 0) + i.qtd;
       await prisma.movEstoque.create({ data: { pecaId: i.pecaId, data: o.entrada, tipo: 'Saída OS', quantidade: -i.qtd, custoUnit: i.custo, origem: `OS ${String(n).padStart(5, '0')}`, osId: criada.id, automatico: true } });
