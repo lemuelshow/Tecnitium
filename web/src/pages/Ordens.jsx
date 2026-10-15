@@ -33,7 +33,7 @@ export function mensagemPronta(os, cliente, aparelho, cfg) {
   return `Olá, ${nome}! Aqui é da ${cfg.nomeEmpresa || 'assistência técnica'}. ` +
     (pronta ? `Seu ${aparelho?.marca || ''} ${aparelho?.modelo || ''} (OS ${numeroOS(os.numero)}) está pronto para retirada.` : `A avaliação do seu ${aparelho?.marca || ''} ${aparelho?.modelo || ''} (OS ${numeroOS(os.numero)}) foi concluída e ele já pode ser retirado.`) +
     (t.saldo > 0 ? ` Valor a pagar: ${brl(t.saldo)}.` : '') + (cfg.endereco ? ` Endereço: ${cfg.endereco}.` : '') +
-    (cliente?.codigoAcesso ? ` Acompanhe suas OS em ${window.location.origin}/?cliente (toque em "Sou cliente", use seu telefone e o código ${cliente.codigoAcesso}).` : '') + ' Obrigado!';
+    ([11, 14].includes(String(cliente?.documento || '').replace(/\D/g, '').length) ? ` Acompanhe suas OS em ${window.location.origin}/?cliente (login e senha: seu CPF/CNPJ).` : '') + ' Obrigado!';
 }
 
 export default function Ordens() {

@@ -5,7 +5,7 @@ import { api } from '../lib/api.js';
 import { brl, num, fd, fdt } from '../lib/format.js';
 
 // Documento da OS: usado na impressao da equipe e no portal do cliente.
-// acesso: { codigo } mostra ao cliente como acompanhar a OS pelo portal (so na via da equipe).
+// acesso: true mostra ao cliente como acompanhar a OS pelo portal (so na via da equipe).
 export function DocumentoOS({ os, cfg, cli, ap, tec, fotos = [], acesso }) {
   const t = totaisOS(os);
   const entregue = os.status === 'Entregue';
@@ -44,8 +44,8 @@ export function DocumentoOS({ os, cfg, cli, ap, tec, fotos = [], acesso }) {
         <div className="blk"><h4>Prazos</h4>Previsão de entrega: <strong>{fd(os.prazo)}</strong><br />Técnico: {tec?.nome || 'a definir'}{entregue ? <><br />Retirado em {fd(os.dataEntrega)}{os.retiradoPor ? ` por ${os.retiradoPor}` : ''}</> : null}</div>
         <div className="blk"><h4>Garantia</h4>{os.garantiaDias ? <>{os.garantiaDias} dias{entregue ? `, até ${fd(somarDias(os.dataEntrega, os.garantiaDias))}` : ' a partir da retirada'}, sobre o serviço executado e as peças trocadas.</> : 'Sem garantia.'}</div>
       </div>
-      {acesso?.codigo && !entregue ? (
-        <div className="blk"><h4>Acompanhe sua OS</h4>Acesse <strong>{window.location.origin}</strong>, toque em “Sou cliente” e entre com seu telefone (ou CPF) e o código <strong className="mono">{acesso.codigo}</strong>.</div>
+      {acesso && !entregue && [11, 14].includes(String(cli.documento || '').replace(/\D/g, '').length) ? (
+        <div className="blk"><h4>Acompanhe sua OS</h4>Acesse <strong>{window.location.origin}</strong>, toque em “Sou cliente” e use o seu CPF/CNPJ como login e como senha.</div>
       ) : null}
       {fotos.length ? <div className="blk"><h4>Fotos do aparelho na entrada</h4><div className="fotos-p">{fotos.map((f) => <img key={f.id} src={f.url} alt="Foto do aparelho" />)}</div></div> : null}
       {cfg.termos ? <div className="blk"><h4>Termos</h4><div className="termos">{cfg.termos}</div></div> : null}
@@ -82,7 +82,7 @@ export default function Imprimir() {
         <button className="btn primary" onClick={() => window.print()}>Imprimir</button>
       </div>
       <DicaImpressao />
-      <DocumentoOS os={os} cfg={cfg} cli={cli} ap={ap} tec={tec} fotos={fotos} acesso={{ codigo: cli.codigoAcesso }} />
+      <DocumentoOS os={os} cfg={cfg} cli={cli} ap={ap} tec={tec} fotos={fotos} acesso />
     </div>
   );
 }

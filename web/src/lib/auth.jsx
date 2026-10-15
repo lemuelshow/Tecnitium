@@ -19,8 +19,8 @@ export function AuthProvider({ children }) {
     setSessao(s);
   }, []);
 
-  const entrarCliente = useCallback(async (identificador, codigo) => {
-    const s = await api('/auth/cliente', { method: 'POST', body: { identificador, codigo } });
+  const entrarCliente = useCallback(async (documento, senha) => {
+    const s = await api('/auth/cliente', { method: 'POST', body: { documento, senha } });
     gravarSessao(s);
     setSessao(s);
   }, []);

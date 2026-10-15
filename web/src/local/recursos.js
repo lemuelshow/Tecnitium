@@ -2,7 +2,7 @@
 // As regras rodam dentro da mesma transacao da gravacao (ctx.tx); se algo falhar, nada e gravado.
 import {
   OS_STATUS, OS_PARA_RETIRAR, TIPOS_APARELHO, FORMAS_PAGAMENTO,
-  hoje, isoDateTime, somarDias, calcularComissao, pecasDaOS, numeroOS, gerarCodigoAcesso, normalizarCodigo,
+  hoje, isoDateTime, somarDias, calcularComissao, pecasDaOS, numeroOS,
 } from '@tecnitium/shared';
 import { falha } from './erros.js';
 import { apagarFotosDaOS } from './fotos.js';
@@ -45,14 +45,15 @@ export const recursos = {
     modelo: 'cliente', ordem: { nome: 'asc' }, escrita: BALCAO,
     campos: {
       nome: txt('o nome', req), documento: txt('CPF/CNPJ'), telefone: txt('Telefone'), whatsapp: txt('WhatsApp'), email: txt('E-mail'),
-      cep: txt('CEP'), endereco: txt('Endereço'), cidade: txt('Cidade'), uf: txt('UF'), obs: txt('Observações'), codigoAcesso: txt('Código de acesso'),
+      cep: txt('CEP'), endereco: txt('Endereço'), cidade: txt('Cidade'), uf: txt('UF'), obs: txt('Observações'),
     },
     validar(d) { if (!d.telefone && !d.whatsapp) throw falha('Informe ao menos um telefone ou WhatsApp para avisar o cliente.', 'telefone'); },
-    // Codigo que o cliente usa, junto com o telefone ou CPF, para acompanhar as OS no portal.
-    antes(d, { novo, final }) {
-      const c = normalizarCodigo(final.codigoAcesso);
-      if (c && c.length < 4) throw falha('O código de acesso precisa ter ao menos 4 letras ou números.', 'codigoAcesso');
-      if (c) d.codigoAcesso = c; else if (novo || !final.codigoAcesso) d.codigoAcesso = gerarCodigoAcesso();
+    // O CPF/CNPJ e o login do cliente no portal: nao pode repetir entre clientes.
+    async antes(d, { tx, final }) {
+      const doc = String(final.documento || '').replace(/\D/g, '');
+      if (!doc) return;
+      const outro = (await tx.cliente.findMany()).find((c) => c.id !== final.id && String(c.documento || '').replace(/\D/g, '') === doc);
+      if (outro) throw falha(`Este CPF/CNPJ já está no cadastro de ${outro.nome}.`, 'documento');
     },
     async aoExcluir(c, { tx }) {
       if (await tx.ordemServico.count({ where: { clienteId: c.id } })) throw falha('Este cliente tem ordens de serviço e não pode ser excluído.');

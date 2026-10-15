@@ -526,3 +526,13 @@ input[type=date]::-webkit-datetime-edit,input[type=datetime-local]::-webkit-date
 .editor-barra .esp i{display:block;width:22px;background:#D7DEE3;border-radius:3px}
 @media (max-width:520px){.editor-barra button span{display:none}.editor-barra{gap:8px 10px}}
 @media print{.portal-topo{display:none!important}.portal-main{padding:0}}
+
+/* ---------- campo com lupa (CNPJ e CEP) ---------- */
+.campo-busca{display:flex;gap:6px;align-items:stretch}
+.campo-busca input{flex:1;min-width:0}
+.campo-busca .lupa{flex:none;width:44px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--accent-strong);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.campo-busca .lupa:hover{border-color:var(--accent);background:var(--info-bg)}
+.campo-busca .lupa:disabled{cursor:progress}
+.campo-busca .lupa svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+.girando{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--accent-strong);animation:girar .8s linear infinite}
+@keyframes girar{to{transform:rotate(360deg)}}

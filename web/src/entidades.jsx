@@ -2,6 +2,7 @@
 import { TIPOS_APARELHO, UFS, isoDateTime } from '@tecnitium/shared';
 import { Pill } from './components/ui.jsx';
 import { brl, num, fd, fdt } from './lib/format.js';
+import { consultarCnpj, consultarCep } from './lib/consultas.js';
 
 const BALCAO = ['ADMIN', 'ATENDENTE'];
 const vazio = <span className="sub">—</span>;
@@ -14,13 +15,11 @@ export const clientes = {
   nomeDe: (r) => r.nome,
   campos: [
     { k: 'nome', l: 'Nome completo / razão social', obrig: true, span: true },
-    { k: 'documento', l: 'CPF / CNPJ' }, { k: 'email', l: 'E-mail', t: 'email' },
+    { k: 'documento', l: 'CPF / CNPJ', busca: consultarCnpj, buscaRotulo: 'Buscar dados do CNPJ', dica: 'Com CNPJ, a lupa preenche pela Receita Federal. O CPF/CNPJ também é o login e a senha do cliente no portal.' }, { k: 'email', l: 'E-mail', t: 'email' },
     { k: 'whatsapp', l: 'WhatsApp', dica: 'Usado para avisar que o aparelho está pronto' }, { k: 'telefone', l: 'Telefone fixo' },
-    { k: 'cep', l: 'CEP' }, { k: 'endereco', l: 'Endereço' },
+    { k: 'cep', l: 'CEP', busca: consultarCep, buscaRotulo: 'Buscar endereço pelo CEP', dica: 'Toque na lupa para preencher o endereço' }, { k: 'endereco', l: 'Endereço' },
     { k: 'cidade', l: 'Cidade' }, { k: 'uf', l: 'UF', t: 'select', o: UFS },
     { k: 'obs', l: 'Observações', t: 'texto-longo', span: true },
-    { k: 'secao-portal', l: 'Portal do cliente', t: 'secao' },
-    { k: 'codigoAcesso', l: 'Código de acesso ao portal', span: true, dica: 'Gerado automaticamente. O cliente entra em “Sou cliente” com o telefone (ou CPF) e este código para acompanhar as OS. Apague para gerar um novo.' },
   ],
   colunas: [
     { l: 'Cliente', r: (r) => <><strong>{r.nome}</strong><span className="sub mono">{r.documento}</span></>, csv: (r) => r.nome },
@@ -28,9 +27,9 @@ export const clientes = {
     { l: 'Cidade', r: (r) => (r.cidade ? `${r.cidade}${r.uf ? '/' + r.uf : ''}` : '—'), csv: (r) => r.cidade },
     { l: 'Aparelhos', c: 'num', r: (r, L) => L.aparelhos.filter((a) => a.clienteId === r.id).length, csv: (r, L) => L.aparelhos.filter((a) => a.clienteId === r.id).length },
     { l: 'OS', c: 'num', r: (r, L) => L.ordens.filter((o) => o.clienteId === r.id).length, csv: (r, L) => L.ordens.filter((o) => o.clienteId === r.id).length },
-    { l: 'Acesso ao portal', r: (r) => (r.codigoAcesso ? <span className="mono">{r.codigoAcesso}</span> : <span className="sub">—</span>), csv: (r) => r.codigoAcesso },
+    { l: 'Portal', r: (r) => ([11, 14].includes(String(r.documento || '').replace(/\D/g, '').length) ? <Pill tom="ok">Liberado</Pill> : <Pill tom="mute">Sem CPF/CNPJ</Pill>), csv: (r) => ([11, 14].includes(String(r.documento || '').replace(/\D/g, '').length) ? 'Liberado' : 'Sem CPF/CNPJ') },
   ],
-  texto: (r) => [r.nome, r.documento, r.telefone, r.whatsapp, r.email, r.cidade, r.codigoAcesso].join(' '),
+  texto: (r) => [r.nome, r.documento, r.telefone, r.whatsapp, r.email, r.cidade].join(' '),
 };
 
 export const aparelhos = {

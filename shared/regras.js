@@ -78,23 +78,9 @@ export function linkWhatsapp(fone, texto) {
 }
 
 // ---------- portal do cliente ----------
-// Codigo de acesso do cliente (sem letras/numeros que se confundem: 0/O, 1/I/L).
-const ALFABETO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-export function gerarCodigoAcesso() {
-  const v = new Uint32Array(6);
-  (globalThis.crypto || {}).getRandomValues?.(v);
-  return [...v].map((n, i) => ALFABETO[(n || Math.floor(Math.random() * 1e9) + i) % ALFABETO.length]).join('');
-}
-export const normalizarCodigo = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-// O cliente se identifica pelo telefone/WhatsApp ou pelo CPF/CNPJ.
-export function identificaCliente(cliente, entrada) {
-  const d = somenteDigitos(entrada);
-  if (d.length < 8) return false;
-  const doc = somenteDigitos(cliente.documento);
-  if (doc && doc === d) return true;
-  return [cliente.whatsapp, cliente.telefone].map(somenteDigitos).filter((f) => f.length >= 8).some((f) => f === d || f.endsWith(d) || d.endsWith(f));
-}
+// O cliente entra no portal com o CPF/CNPJ (so numeros) como login e como senha.
+export const documentoDoCliente = (cliente) => somenteDigitos(cliente?.documento);
+export const documentoValidoParaPortal = (doc) => [11, 14].includes(somenteDigitos(doc).length);
 
 // Etapas da linha do tempo mostrada ao cliente.
 export function etapasOS(os) {

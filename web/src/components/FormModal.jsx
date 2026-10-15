@@ -17,6 +17,28 @@ export default function FormModal({ ent, registro, preset, L, onFechar, onSalvo,
   const [erros, setErros] = useState({});
   const [erroGeral, setErroGeral] = useState('');
   const [confirmando, setConfirmando] = useState(false);
+  const [buscando, setBuscando] = useState(null);
+
+  // Lupa ao lado do campo (ex.: CNPJ e CEP): consulta um servico publico e preenche o formulario.
+  async function buscar(f) {
+    if (buscando) return;
+    setBuscando(f.k);
+    setErros((e) => ({ ...e, [f.k]: undefined }));
+    try {
+      const r = await f.busca(form[f.k], form);
+      setForm((atual) => ({ ...atual, ...r.patch }));
+      setErros((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !(k in r.patch))));
+      avisar(r.aviso, !!r.alerta);
+      if (r.focar) setTimeout(() => {
+        const el = document.getElementById('f_' + r.focar);
+        if (el) { el.focus(); if (r.cursor != null) try { el.setSelectionRange(r.cursor, r.cursor); } catch { /* campo sem selecao */ } }
+      }, 60);
+    } catch (ex) {
+      setErros((e) => ({ ...e, [f.k]: ex.message }));
+    } finally {
+      setBuscando(null);
+    }
+  }
   const salvar = useSalvar(ent.api);
   const excluir = useExcluir(ent.api);
   const avisar = useAviso();
@@ -94,7 +116,7 @@ export default function FormModal({ ent, registro, preset, L, onFechar, onSalvo,
         <fieldset disabled={!podeEditar} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="sheet-b">
           {erroGeral ? <div className="form-err" role="alert">{erroGeral}</div> : null}
-          {ent.campos.filter(visivel).map((f) => <Campo key={f.k} f={f} valor={form[f.k]} form={form} set={set} erro={erros[f.k]} L={L} registro={registro} />)}
+          {ent.campos.filter(visivel).map((f) => <Campo key={f.k} f={f} valor={form[f.k]} form={form} set={set} erro={erros[f.k]} L={L} registro={registro} buscar={buscar} buscando={buscando === f.k} />)}
         </div>
         </fieldset>
         <div className="sheet-f">
@@ -107,7 +129,7 @@ export default function FormModal({ ent, registro, preset, L, onFechar, onSalvo,
   );
 }
 
-function Campo({ f, valor, form, set, erro, L, registro }) {
+function Campo({ f, valor, form, set, erro, L, registro, buscar, buscando }) {
   const id = `f_${f.k}`;
   if (f.t === 'oculto') return null;
   if (f.t === 'secao') return <div className="sec-title">{f.l}</div>;
@@ -142,8 +164,20 @@ function Campo({ f, valor, form, set, erro, L, registro }) {
         maxLength={f.t === 'placa' ? 8 : undefined}
         style={f.t === 'placa' ? { textTransform: 'uppercase', fontFamily: 'var(--f-mono)' } : undefined}
         onChange={(e) => set(f.k, f.t === 'placa' ? e.target.value.toUpperCase() : e.target.value)}
+        inputMode={f.busca ? 'numeric' : undefined}
+        onKeyDown={f.busca ? (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(f); } } : undefined}
       />
     );
+    if (f.busca) {
+      input = (
+        <div className="campo-busca">
+          {input}
+          <button type="button" className="lupa" onClick={() => buscar(f)} disabled={buscando} aria-label={f.buscaRotulo || 'Buscar'} title={f.buscaRotulo || 'Buscar'}>
+            {buscando ? <span className="girando" aria-hidden="true" /> : <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>}
+          </button>
+        </div>
+      );
+    }
   }
   return (
     <div className={`f ${f.span ? 'span2' : ''} ${erro ? 'bad' : ''}`}>

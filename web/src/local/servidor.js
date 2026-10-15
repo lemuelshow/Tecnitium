@@ -1,6 +1,6 @@
 // "Servidor" que roda dentro do navegador: recebe as mesmas rotas que a API Node recebia
 // (/ordens, /painel, /comissoes...) e responde com os dados do localStorage.
-import { OS_EM_BANCADA, OS_PARA_RETIRAR, hoje, mesDe, isoDate, totaisOS, situacaoPrazo, numeroOS, identificaCliente, normalizarCodigo, etapasOS, gerarCodigoAcesso } from '@tecnitium/shared';
+import { OS_EM_BANCADA, OS_PARA_RETIRAR, hoje, mesDe, isoDate, totaisOS, situacaoPrazo, numeroOS, etapasOS, documentoDoCliente, documentoValidoParaPortal, somenteDigitos } from '@tecnitium/shared';
 import { HttpError, falha } from './erros.js';
 import { banco, transacao, carregar, bancoVazio, hashSenha, exportarBanco, importarBanco, limparBanco } from './banco.js';
 import { recursos, lerConfig } from './recursos.js';
@@ -20,21 +20,15 @@ async function preparar() {
     preparando ||= transacao(() => carregarExemplos(true)).finally(() => { preparando = null; });
     await preparando;
   }
-  // Migracao: clientes criados antes do portal ganham um codigo de acesso.
-  if (carregar().cliente.some((c) => !c.codigoAcesso)) {
-    await transacao(async (tx) => {
-      for (const c of await tx.cliente.findMany()) if (!c.codigoAcesso) await tx.cliente.update({ where: { id: c.id }, data: { codigoAcesso: gerarCodigoAcesso() } });
-    });
-  }
 }
 
 async function usuarioLogado() {
   let sessao = null;
   try { sessao = JSON.parse(localStorage.getItem(SESSAO))?.usuario; } catch { /* sem sessao */ }
   if (sessao?.perfil === 'CLIENTE') {
-    // Cliente: vale enquanto o codigo de acesso nao mudar.
+    // Cliente: vale enquanto o CPF/CNPJ do cadastro nao mudar.
     const c = await banco.cliente.findUnique({ where: { id: sessao.clienteId } });
-    if (!c || normalizarCodigo(c.codigoAcesso) !== sessao.codigo) throw new HttpError(401, 'Seu acesso expirou. Entre de novo com o telefone e o código.');
+    if (!c || documentoDoCliente(c) !== sessao.documento) throw new HttpError(401, 'Seu acesso expirou. Entre de novo com o seu CPF ou CNPJ.');
     return { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome };
   }
   const id = sessao?.id;
@@ -78,12 +72,14 @@ async function login({ email, senha }) {
   return { token: 'local', usuario: publico(u) };
 }
 
-async function loginCliente({ identificador, codigo }) {
-  if (!identificador || !codigo) throw falha('Informe o telefone (ou CPF) e o código de acesso.');
-  const cod = normalizarCodigo(codigo);
-  const c = (await banco.cliente.findMany()).find((x) => normalizarCodigo(x.codigoAcesso) === cod && identificaCliente(x, identificador));
-  if (!c) throw new HttpError(401, 'Telefone/CPF ou código de acesso incorretos. O código está na sua OS ou pode ser pedido à loja.');
-  return { token: 'local', usuario: { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome, codigo: cod } };
+// Login do cliente: CPF/CNPJ como usuario e como senha (so os numeros contam).
+async function loginCliente({ documento, senha }) {
+  const doc = somenteDigitos(documento);
+  if (!doc || !senha) throw falha('Informe o seu CPF ou CNPJ no login e na senha.');
+  if (!documentoValidoParaPortal(doc)) throw falha('Digite o CPF (11 números) ou o CNPJ (14 números).', 'documento');
+  const c = (await banco.cliente.findMany()).find((x) => documentoDoCliente(x) === doc);
+  if (!c || somenteDigitos(senha) !== doc) throw new HttpError(401, 'CPF/CNPJ ou senha incorretos. A senha é o seu CPF ou CNPJ. Se não conseguir, fale com a loja.');
+  return { token: 'local', usuario: { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome, documento: doc } };
 }
 
 // ---------- portal do cliente ----------
@@ -96,7 +92,7 @@ async function portal(usuario, id, sub) {
   const cfg = await transacao((tx) => lerConfig(tx));
   const empresa = { nomeEmpresa: cfg.nomeEmpresa, documento: cfg.documento, telefone: cfg.telefone, whatsapp: cfg.whatsapp, endereco: cfg.endereco, termos: cfg.termos };
   const cliente = await banco.cliente.findUnique({ where: { id: usuario.clienteId } });
-  const { codigoAcesso, obs, ...clientePublico } = cliente;
+  const { obs, ...clientePublico } = cliente;
   const aparelhos = Object.fromEntries((await banco.aparelho.findMany({ where: { clienteId: cliente.id } })).map(({ senha, obs: o, ...a }) => [a.id, a]));
   const ordens = (await banco.ordemServico.findMany({ where: { clienteId: cliente.id }, orderBy: { numero: 'desc' } })).map(paraCliente);
   if (!id) {

@@ -14,7 +14,7 @@ Tecnologias: React 18, Vite, React Router, TanStack Query e Recharts.
 
 ## Portal do cliente
 
-Na tela de login, a aba **Sou cliente** pede o telefone/WhatsApp (ou CPF) e o **código de acesso** do cliente. O código é gerado no cadastro do cliente, sai impresso na OS e vai na mensagem de WhatsApp de aparelho pronto. O link `/?cliente` já abre nessa aba.
+Na tela de login, a aba **Sou cliente** pede o **CPF ou CNPJ** do cliente como login e como senha (só os números contam). O cliente precisa ter o CPF/CNPJ no cadastro; a lista de clientes mostra quem está liberado. A OS impressa e a mensagem de WhatsApp de aparelho pronto explicam como entrar. O link `/?cliente` já abre nessa aba.
 
 O cliente vê somente:
 
@@ -22,7 +22,9 @@ O cliente vê somente:
 - as **fotos do aparelho na entrada** (com as marcações de defeito feitas pela equipe);
 - a **OS completa** de cada serviço, para ver, imprimir ou salvar em PDF.
 
-Custos das peças, comissões, observações internas e a senha do aparelho não aparecem para o cliente. Exemplo para testar: telefone `(11) 99123-4501` e código `ACP501`.
+Custos das peças, comissões, observações internas e a senha do aparelho não aparecem para o cliente. Exemplo para testar: `12345678910` no login e na senha (Ana Carolina Prado).
+
+Como o CPF/CNPJ não é segredo, quem souber o documento de um cliente consegue ver as OS dele. Para mais segurança no futuro, dá para trocar a senha por uma escolhida pelo cliente.
 
 **Atenção nesta versão sem servidor:** os dados ficam no navegador da loja. O portal funciona no mesmo aparelho (ex.: tablet no balcão). Para o cliente acompanhar do próprio celular, é preciso voltar a ter um back-end (as rotas `/portal` já estão separadas em `web/src/local/servidor.js`).
 

@@ -21,13 +21,13 @@ function Login() {
   const [modo, setModo] = useState(() => (new URLSearchParams(window.location.search).get('cliente') != null ? 'cliente' : 'equipe'));
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [ident, setIdent] = useState('');
-  const [codigo, setCodigo] = useState('');
+  const [doc, setDoc] = useState('');
+  const [senhaCli, setSenhaCli] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   async function enviar(e) {
     e.preventDefault(); setErro(''); setEnviando(true);
-    try { modo === 'cliente' ? await entrarCliente(ident, codigo) : await entrar(email, senha); } catch (ex) { setErro(ex.message); setEnviando(false); }
+    try { modo === 'cliente' ? await entrarCliente(doc, senhaCli) : await entrar(email, senha); } catch (ex) { setErro(ex.message); setEnviando(false); }
   }
   const trocar = (m) => { setModo(m); setErro(''); };
   return (
@@ -50,8 +50,8 @@ function Login() {
           {erro ? <div className="form-err" role="alert">{erro}</div> : null}
           {modo === 'cliente' ? (
             <>
-              <div className="f"><label htmlFor="ident">Telefone, WhatsApp ou CPF</label><input id="ident" inputMode="numeric" value={ident} onChange={(e) => setIdent(e.target.value)} autoComplete="tel" placeholder="(11) 99999-9999" required /></div>
-              <div className="f"><label htmlFor="codigo">Código de acesso</label><input id="codigo" value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="one-time-code" placeholder="Está impresso na sua OS" required style={{ fontFamily: 'var(--f-mono)', letterSpacing: '.12em' }} /></div>
+              <div className="f"><label htmlFor="doc">CPF ou CNPJ</label><input id="doc" inputMode="numeric" value={doc} onChange={(e) => setDoc(e.target.value)} autoComplete="username" placeholder="Somente números" required /></div>
+              <div className="f"><label htmlFor="senhaCli">Senha</label><input id="senhaCli" type="password" inputMode="numeric" value={senhaCli} onChange={(e) => setSenhaCli(e.target.value)} autoComplete="current-password" required /><span className="hint">A senha também é o seu CPF ou CNPJ.</span></div>
             </>
           ) : (
             <>
@@ -62,7 +62,7 @@ function Login() {
           <button className="btn primary" style={{ justifyContent: 'center', padding: '10px 14px' }} disabled={enviando}>{enviando ? 'Entrando…' : modo === 'cliente' ? 'Ver minhas ordens' : 'Entrar'}</button>
           <div className="demo-users">
             {modo === 'cliente' ? (
-              <>Exemplo para testar: telefone <code>(11) 99123-4501</code> e código <code>ACP501</code> (Ana Carolina Prado).<br /><br />O código de cada cliente aparece no cadastro dele e na OS impressa.</>
+              <>Use o CPF ou CNPJ do seu cadastro como login e como senha.<br /><br />Exemplo para testar: <code>12345678910</code> no login e na senha (Ana Carolina Prado).</>
             ) : (
               <>
                 Versão de demonstração: os dados ficam salvos neste navegador e já vêm com exemplos.<br /><br />

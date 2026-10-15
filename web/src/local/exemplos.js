@@ -44,17 +44,13 @@ async function exemplos() {
   for (const [k, d] of Object.entries({
     ana: { nome: 'Ana Carolina Prado', documento: '123.456.789-10', whatsapp: '(11) 99123-4501', email: 'ana.prado@email.com', cidade: 'São Paulo', uf: 'SP' },
     bruno: { nome: 'Bruno Tavares', documento: '234.567.891-20', whatsapp: '(11) 99123-4502', cidade: 'São Paulo', uf: 'SP' },
-    carla: { nome: 'Carla Menezes', whatsapp: '(11) 99123-4503', telefone: '(11) 3456-7788', cidade: 'Santo André', uf: 'SP' },
+    carla: { nome: 'Carla Menezes', documento: '345.678.912-30', whatsapp: '(11) 99123-4503', telefone: '(11) 3456-7788', cidade: 'Santo André', uf: 'SP' },
     escola: { nome: 'Colégio Horizonte Ltda', documento: '33.444.555/0001-66', telefone: '(11) 3456-9900', whatsapp: '(11) 99123-4504', email: 'ti@colegiohorizonte.com.br', endereco: 'Av. Paulista, 900', cidade: 'São Paulo', uf: 'SP' },
-    fernando: { nome: 'Fernando Oliveira', whatsapp: '(11) 99123-4505', cidade: 'Guarulhos', uf: 'SP' },
-    gabriela: { nome: 'Gabriela Nunes', whatsapp: '(11) 99123-4506', cidade: 'São Paulo', uf: 'SP' },
-    henrique: { nome: 'Henrique Batista', whatsapp: '(11) 99123-4507', cidade: 'Osasco', uf: 'SP' },
-    julia: { nome: 'Júlia Ferraz', whatsapp: '(11) 99123-4508', cidade: 'São Paulo', uf: 'SP' },
-  })) {
-    // Codigo de acesso do portal: iniciais + final do WhatsApp (ex.: Ana Carolina Prado -> ACP501).
-    const ini = d.nome.split(' ').filter((p) => p.length > 2).map((p) => p[0]).join('').slice(0, 3).toUpperCase();
-    clientes[k] = await prisma.cliente.create({ data: { ...d, codigoAcesso: ini + d.whatsapp.replace(/\D/g, '').slice(-3) } });
-  }
+    fernando: { nome: 'Fernando Oliveira', documento: '456.789.123-40', whatsapp: '(11) 99123-4505', cidade: 'Guarulhos', uf: 'SP' },
+    gabriela: { nome: 'Gabriela Nunes', documento: '567.891.234-50', whatsapp: '(11) 99123-4506', cidade: 'São Paulo', uf: 'SP' },
+    henrique: { nome: 'Henrique Batista', documento: '678.912.345-60', whatsapp: '(11) 99123-4507', cidade: 'Osasco', uf: 'SP' },
+    julia: { nome: 'Júlia Ferraz', documento: '789.123.456-70', whatsapp: '(11) 99123-4508', cidade: 'São Paulo', uf: 'SP' },
+  })) clientes[k] = await prisma.cliente.create({ data: d });
 
   const ap = {};
   for (const [k, c, d] of [
