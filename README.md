@@ -2,7 +2,7 @@
 
 Sistema para assistência técnica: ordens de serviço com fotos, clientes, aparelhos, técnicos, atendentes, estoque de peças, alertas de prazo e de retirada, e comissão dos técnicos.
 
-**Versão atual: só front-end.** Não há servidor nem banco externo. Tudo roda no navegador:
+**Versão atual: só front-end** (com uma única função na Vercel para enviar e-mail). Não há servidor de dados nem banco externo. Tudo roda no navegador:
 
 - cadastros, OS, estoque e configuração ficam no `localStorage`;
 - as fotos das OS ficam no IndexedDB do navegador (cabe bem mais que o `localStorage`);
@@ -32,6 +32,14 @@ Como o CPF/CNPJ não é segredo, quem souber o documento de um cliente consegue 
 
 - **Contas a pagar:** descrição, categoria (aluguel, energia, fornecedor de peças, impostos, contador...), favorecido, valor, vencimento, nº do documento e pagamento (data e forma). Contas com repetição **mensal** criam a do mês seguinte quando são pagas. Totais de vencidas, próximos 7 dias, em aberto e pago no mês; o painel do administrador mostra as vencidas e as que vencem na semana.
 - **Simulador de impostos:** compara **MEI**, **Simples Nacional** e **Lucro Presumido** para o mês. Mão de obra entra no Simples pelo Anexo III (reparo e manutenção) e peças pelo Anexo I (comércio), com a faixa definida pela receita dos últimos 12 meses (RBT12). "Usar dados do sistema" puxa a receita das OS entregues no mês e dos 12 meses anteriores. Mostra o detalhamento de cada imposto, aponta o menor e lança o DAS em contas a pagar (vencimento dia 20 do mês seguinte). É uma estimativa: confirme com o contador.
+
+## E-mail (SMTP do Gmail) e "Esqueci a senha"
+
+Em **Configurações → E-mail (SMTP)** o administrador cadastra o servidor (padrão `smtp.gmail.com`, porta 465), o e-mail do Gmail, a **senha de app** e o nome do remetente, e pode enviar um e-mail de teste. Com Gmail é obrigatório usar senha de app: Conta Google → Segurança → Verificação em duas etapas (ativar) → **Senhas de app**. A senha fica só no navegador do administrador e não sai no backup.
+
+No login da equipe, **Esqueci a senha** envia um código de 6 números para o e-mail do usuário (vale 15 minutos, até 5 tentativas); com o código a pessoa cria uma senha nova. A resposta é a mesma para e-mails cadastrados ou não. Clientes não precisam disso: a senha do portal é o CPF/CNPJ.
+
+**Única parte fora do navegador:** navegador não fala SMTP, então o envio passa pela função `api/email.js` (Vercel Serverless Function, com `nodemailer`). Ela só repassa a mensagem com os dados do SMTP que o navegador manda, aceita chamadas apenas do próprio site e não guarda nada. No `npm run dev` a mesma função roda pelo Vite.
 
 ## Busca de CNPJ e CEP no cadastro do cliente
 

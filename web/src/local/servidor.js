@@ -11,7 +11,7 @@ const SESSAO = 'tecnitium:sessao';
 export const LIMITE_VIDEO = 150 * 1024 * 1024; // 150 MB por video
 const PERFIS = { ADMIN: 'Administrador', ATENDENTE: 'Atendente', TECNICO: 'Técnico' };
 const soma = (l, f) => l.reduce((s, x) => s + (Number(f(x)) || 0), 0);
-const publico = ({ senhaHash, ...u }) => u;
+const publico = ({ senhaHash, resetHash, resetExpira, resetTentativas, ...u }) => u;
 const exigir = (usuario, perfis) => { if (!perfis.includes(usuario.perfil)) throw new HttpError(403, 'Seu perfil não tem permissão para esta ação.'); };
 
 // Na primeira abertura, carrega os dados de exemplo.
@@ -48,6 +48,8 @@ export async function servidor(method, caminho, corpo) {
 
   if (base === 'auth' && id === 'login' && method === 'POST') return login(body);
   if (base === 'auth' && id === 'cliente' && method === 'POST') return loginCliente(body);
+  if (base === 'auth' && id === 'esqueci' && method === 'POST') return esqueciSenha(body);
+  if (base === 'auth' && id === 'redefinir' && method === 'POST') return redefinirSenha(body);
   const usuario = await usuarioLogado();
   // O cliente so enxerga o portal (as proprias OS); nada do restante do sistema.
   if (usuario.perfil === 'CLIENTE') {
@@ -56,6 +58,7 @@ export async function servidor(method, caminho, corpo) {
   }
   if (base === 'auth' && id === 'senha') return trocarSenha(usuario, body);
   if (base === 'usuarios') return usuarios(method, id, body, usuario);
+  if (base === 'config' && id === 'teste-email') return testarEmail(body, usuario);
   if (base === 'config') return config(method, body, usuario);
   if (base === 'fotos') return fotos(method, id, body, query, usuario);
   if (base === 'painel') return painel(usuario);
@@ -82,6 +85,79 @@ async function loginCliente({ documento, senha }) {
   const c = (await banco.cliente.findMany()).find((x) => documentoDoCliente(x) === doc);
   if (!c || somenteDigitos(senha) !== doc) throw new HttpError(401, 'CPF/CNPJ ou senha incorretos. A senha é o seu CPF ou CNPJ. Se não conseguir, fale com a loja.');
   return { token: 'local', usuario: { id: 'cliente:' + c.id, perfil: 'CLIENTE', clienteId: c.id, nome: c.nome, documento: doc } };
+}
+
+// ---------- e-mail (SMTP pela funcao /api/email) e recuperacao de senha ----------
+async function enviarEmail(cfg, { para, assunto, texto, html }) {
+  if (!cfg.smtpUsuario || !cfg.smtpSenha) throw new HttpError(422, 'O envio de e-mail não está configurado. O administrador precisa cadastrar o SMTP em Configurações.');
+  let resp;
+  try {
+    resp = await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smtp: { host: cfg.smtpHost, porta: cfg.smtpPorta, usuario: cfg.smtpUsuario, senha: cfg.smtpSenha, remetente: cfg.smtpRemetente || cfg.nomeEmpresa }, para, assunto, texto, html }),
+    });
+  } catch {
+    throw new HttpError(503, navigator.onLine ? 'Não foi possível acessar o serviço de e-mail. Tente de novo em instantes.' : 'Sem internet: o e-mail não pôde ser enviado.');
+  }
+  const corpo = await resp.json().catch(() => null);
+  if (resp.status === 404) throw new HttpError(503, 'O serviço de e-mail (/api/email) não está disponível neste endereço. Ele funciona no sistema publicado na Vercel e no "npm run dev".');
+  if (!resp.ok) throw new HttpError(502, corpo?.erro || 'O e-mail não pôde ser enviado.');
+}
+
+async function testarEmail({ para }, usuario) {
+  exigir(usuario, ['ADMIN']);
+  const cfg = await transacao((tx) => lerConfig(tx));
+  const destino = String(para || cfg.smtpUsuario || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destino)) throw falha('Informe para qual e-mail enviar o teste.', 'para');
+  await enviarEmail(cfg, {
+    para: destino, assunto: `Teste de e-mail - ${cfg.nomeEmpresa}`,
+    texto: `Este é um e-mail de teste do Tecnitium.\n\nSe você recebeu esta mensagem, o envio de e-mails de ${cfg.nomeEmpresa} está funcionando.`,
+  });
+  return { ok: true, para: destino };
+}
+
+const codigoAleatorio = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+const AVISO_GENERICO = 'Se o e-mail estiver cadastrado, enviamos um código de 6 números. Ele vale por 15 minutos.';
+
+async function esqueciSenha({ email }) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw falha('Informe o seu e-mail de acesso.', 'email');
+  const cfg = await transacao((tx) => lerConfig(tx));
+  if (!cfg.smtpUsuario || !cfg.smtpSenha) throw new HttpError(422, 'A recuperação de senha por e-mail ainda não foi configurada. Peça ao administrador para trocar a sua senha em Usuários.');
+  const u = await banco.usuario.findUnique({ where: { email: e } });
+  // Mesmo sem cadastro a resposta e igual: nao revela quais e-mails existem.
+  if (!u || !u.ativo) return { mensagem: AVISO_GENERICO };
+  const codigo = codigoAleatorio();
+  const expira = new Date(Date.now() + 15 * 60000).toISOString();
+  await transacao((tx) => tx.usuario.update({ where: { id: u.id }, data: { resetHash: '', resetExpira: null } }));
+  await enviarEmail(cfg, {
+    para: u.email, assunto: `Código para redefinir sua senha - ${cfg.nomeEmpresa}`,
+    texto: `Olá, ${u.nome.split(' ')[0]}!\n\nSeu código para redefinir a senha do Tecnitium é: ${codigo}\n\nEle vale por 15 minutos. Se você não pediu, ignore este e-mail: sua senha continua a mesma.`,
+    html: `<p>Olá, ${u.nome.split(' ')[0].replace(/[<>&]/g, '')}!</p><p>Seu código para redefinir a senha do Tecnitium é:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace">${codigo}</p><p>Ele vale por 15 minutos. Se você não pediu, ignore este e-mail: sua senha continua a mesma.</p><p style="color:#666">${String(cfg.nomeEmpresa).replace(/[<>&]/g, '')}</p>`,
+  });
+  // So grava o codigo depois que o e-mail saiu.
+  const resetHash = await hashSenha(u.email, 'codigo:' + codigo);
+  await transacao((tx) => tx.usuario.update({ where: { id: u.id }, data: { resetHash, resetExpira: expira, resetTentativas: 0 } }));
+  return { mensagem: AVISO_GENERICO };
+}
+
+async function redefinirSenha({ email, codigo, nova }) {
+  const e = String(email || '').trim().toLowerCase();
+  const c = somenteDigitos(codigo);
+  if (c.length !== 6) throw falha('Digite os 6 números do código que chegou no e-mail.', 'codigo');
+  if (!nova || String(nova).length < 6) throw falha('A nova senha precisa ter ao menos 6 caracteres.', 'nova');
+  const u = await banco.usuario.findUnique({ where: { email: e } });
+  const invalido = () => new HttpError(422, 'Código inválido ou vencido. Peça um novo código.');
+  if (!u || !u.resetHash || !u.resetExpira) throw invalido();
+  if (new Date(u.resetExpira) < new Date()) throw invalido();
+  if ((u.resetTentativas || 0) >= 5) throw new HttpError(429, 'Muitas tentativas com código errado. Peça um novo código.');
+  if (u.resetHash !== (await hashSenha(u.email, 'codigo:' + c))) {
+    await transacao((tx) => tx.usuario.update({ where: { id: u.id }, data: { resetTentativas: (u.resetTentativas || 0) + 1 } }));
+    throw falha('Código incorreto. Confira os números no e-mail.', 'codigo');
+  }
+  const senhaHash = await hashSenha(u.email, String(nova));
+  await transacao((tx) => tx.usuario.update({ where: { id: u.id }, data: { senhaHash, resetHash: null, resetExpira: null, resetTentativas: 0 } }));
+  return { mensagem: 'Senha alterada. Entre com a nova senha.' };
 }
 
 // ---------- portal do cliente ----------
@@ -221,7 +297,11 @@ async function crud(recurso, method, id, body, usuario) {
 
 // ---------- configuracao, fotos e backup ----------
 async function config(method, b, usuario) {
-  if (method === 'GET') return transacao((tx) => lerConfig(tx));
+  if (method === 'GET') {
+    const { smtpSenha, ...cfg } = await transacao((tx) => lerConfig(tx));
+    if (usuario.perfil !== 'ADMIN') { for (const k of Object.keys(cfg)) if (k.startsWith('smtp')) delete cfg[k]; return cfg; }
+    return { ...cfg, smtpSenhaDefinida: !!smtpSenha };
+  }
   exigir(usuario, ['ADMIN']);
   if (!b.nomeEmpresa?.trim()) throw falha('Informe o nome da empresa.', 'nomeEmpresa');
   const n = (v, min, max, campo) => { const x = Math.round(Number(v)); if (!Number.isFinite(x) || x < min || x > max) throw falha(`Valor entre ${min} e ${max}.`, campo); return x; };
@@ -230,7 +310,17 @@ async function config(method, b, usuario) {
     prazoPadraoDias: n(b.prazoPadraoDias, 0, 90, 'prazoPadraoDias'), garantiaDias: n(b.garantiaDias, 0, 730, 'garantiaDias'), diasAbandono: n(b.diasAbandono, 1, 365, 'diasAbandono'),
     baseComissaoPeca: b.baseComissaoPeca === 'Lucro' ? 'Lucro' : 'Venda', termos: b.termos || null,
   };
-  return transacao(async (tx) => { await lerConfig(tx); return tx.configuracao.update({ where: { id: 1 }, data }); });
+  // O SMTP so muda quando vem da secao de e-mail (a tela de dados da empresa nao manda esses campos).
+  if ('smtpUsuario' in b) Object.assign(data, {
+    smtpHost: String(b.smtpHost || 'smtp.gmail.com').trim(), smtpPorta: [465, 587].includes(Number(b.smtpPorta)) ? Number(b.smtpPorta) : 465,
+    smtpUsuario: b.smtpUsuario ? String(b.smtpUsuario).trim().toLowerCase() : null, smtpRemetente: b.smtpRemetente ? String(b.smtpRemetente).trim() : null,
+  });
+  if (data.smtpUsuario && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.smtpUsuario)) throw falha('Informe um e-mail válido para o SMTP.', 'smtpUsuario');
+  // Senha de app: vazia = mantem a atual; "apagar" remove.
+  if (b.smtpSenha) data.smtpSenha = String(b.smtpSenha).replace(/\s+/g, '');
+  if (b.smtpRemoverSenha) data.smtpSenha = null;
+  const { smtpSenha, ...salvo } = await transacao(async (tx) => { await lerConfig(tx); return tx.configuracao.update({ where: { id: 1 }, data }); });
+  return { ...salvo, smtpSenhaDefinida: !!smtpSenha };
 }
 
 async function fotos(method, id, b, query, usuario) {

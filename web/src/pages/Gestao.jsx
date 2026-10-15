@@ -100,7 +100,11 @@ export function Configuracoes() {
   const inp = (k, extra = {}) => ({ id: 'c_' + k, value: f[k] ?? '', onChange: (e) => setF({ ...f, [k]: e.target.value }), ...extra });
   async function salvar(e) {
     e.preventDefault(); setSalvando(true); setErro('');
-    try { await api('/config', { method: 'PUT', body: f }); qc.invalidateQueries(); avisar('Configurações salvas.'); } catch (ex) { setErro(ex.message); }
+    try {
+      const semSmtp = Object.fromEntries(Object.entries(f).filter(([k]) => !k.startsWith('smtp')));
+      const salvo = await api('/config', { method: 'PUT', body: semSmtp });
+      setF(salvo); qc.invalidateQueries(); avisar('Configurações salvas.');
+    } catch (ex) { setErro(ex.message); }
     setSalvando(false);
   }
   return (
@@ -126,6 +130,7 @@ export function Configuracoes() {
         </div>
         <div className="actions" style={{ marginTop: 16, justifyContent: 'flex-end' }}><button className="btn primary" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar configurações'}</button></div>
       </form>
+      <EmailSmtp />
       <Dados />
     </>
   );
@@ -182,5 +187,63 @@ function Dados() {
         <button className="btn danger" onClick={() => setConfirmar('limpar')}>Começar do zero</button>
       </div>
     </div>
+  );
+}
+
+// E-mail (SMTP): usado no "Esqueci a senha" e no e-mail de teste. Enviado pela funcao /api/email.
+function EmailSmtp() {
+  const { data } = useQuery({ queryKey: ['config'], queryFn: () => api('/config') });
+  const qc = useQueryClient();
+  const avisar = useAviso();
+  const [f, setF] = useState(null);
+  const [erro, setErro] = useState('');
+  const [ocupado, setOcupado] = useState('');
+  const [para, setPara] = useState('');
+  useEffect(() => { if (data && !f) setF({ smtpHost: data.smtpHost || 'smtp.gmail.com', smtpPorta: data.smtpPorta || 465, smtpUsuario: data.smtpUsuario || '', smtpRemetente: data.smtpRemetente || '', smtpSenha: '', definida: !!data.smtpSenhaDefinida }); }, [data, f]);
+  if (!f || !data) return null;
+  const inp = (k, extra = {}) => ({ id: 'm_' + k, value: f[k] ?? '', onChange: (e) => setF({ ...f, [k]: e.target.value }), ...extra });
+  async function salvar(e) {
+    e.preventDefault(); setOcupado('salvar'); setErro('');
+    try {
+      const salvo = await api('/config', { method: 'PUT', body: { ...data, ...f, smtpSenha: f.smtpSenha } });
+      setF({ ...f, smtpSenha: '', definida: !!salvo.smtpSenhaDefinida }); qc.invalidateQueries({ queryKey: ['config'] }); avisar('Configuração de e-mail salva.');
+    } catch (ex) { setErro(ex.message); }
+    setOcupado('');
+  }
+  async function testar() {
+    setOcupado('teste'); setErro('');
+    try { const r = await api('/config/teste-email', { method: 'POST', body: { para: para || f.smtpUsuario } }); avisar(`E-mail de teste enviado para ${r.para}. Confira a caixa de entrada (e o spam).`); }
+    catch (ex) { setErro(ex.message); }
+    setOcupado('');
+  }
+  async function removerSenha() {
+    setOcupado('remover');
+    try { await api('/config', { method: 'PUT', body: { ...data, ...f, smtpSenha: '', smtpRemoverSenha: true } }); setF({ ...f, smtpSenha: '', definida: false }); qc.invalidateQueries({ queryKey: ['config'] }); avisar('Senha de app removida.'); }
+    catch (ex) { setErro(ex.message); }
+    setOcupado('');
+  }
+  return (
+    <form className="panel" onSubmit={salvar} style={{ maxWidth: 860, marginTop: 16 }}>
+      <div className="panel-h"><h2>E-mail (SMTP)</h2>{f.definida && f.smtpUsuario ? <Pill tom="ok">Configurado</Pill> : <Pill tom="mute">Não configurado</Pill>}</div>
+      <p className="sub" style={{ marginBottom: 12 }}>Usado para enviar o código do <strong>“Esqueci a senha”</strong> da equipe. Com Gmail, use uma <strong>senha de app</strong>: Conta Google → Segurança → Verificação em duas etapas (ativar) → Senhas de app → gere uma senha de 16 letras. A senha normal da conta não funciona.</p>
+      {erro ? <div className="form-err" style={{ marginBottom: 12 }}>{erro}</div> : null}
+      <div className="sheet-b" style={{ padding: 0 }}>
+        <div className="f"><label htmlFor="m_smtpHost">Servidor SMTP</label><input {...inp('smtpHost')} /></div>
+        <div className="f"><label htmlFor="m_smtpPorta">Porta</label><select {...inp('smtpPorta')}><option value={465}>465 (SSL, recomendado no Gmail)</option><option value={587}>587 (STARTTLS)</option></select></div>
+        <div className="f"><label htmlFor="m_smtpUsuario">E-mail do Gmail</label><input type="email" placeholder="suaempresa@gmail.com" autoComplete="off" {...inp('smtpUsuario')} /></div>
+        <div className="f"><label htmlFor="m_smtpRemetente">Nome do remetente</label><input placeholder={data.nomeEmpresa} {...inp('smtpRemetente')} /></div>
+        <div className="f span2"><label htmlFor="m_smtpSenha">Senha de app</label>
+          <input type="password" autoComplete="new-password" placeholder={f.definida ? '•••• •••• •••• •••• (guardada; deixe vazio para manter)' : 'abcd efgh ijkl mnop'} {...inp('smtpSenha')} />
+          <span className="hint">Fica guardada só neste navegador e não sai no backup. {f.definida ? <button type="button" className="link" onClick={removerSenha} disabled={!!ocupado}>Remover senha guardada</button> : null}</span>
+        </div>
+      </div>
+      <div className="actions" style={{ marginTop: 16, justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div className="f" style={{ flex: '1 1 260px', maxWidth: 420 }}><label htmlFor="m_para">Enviar teste para</label>
+          <div className="campo-busca"><input id="m_para" type="email" placeholder={f.smtpUsuario || 'email@exemplo.com'} value={para} onChange={(e) => setPara(e.target.value)} /><button type="button" className="btn sm" style={{ whiteSpace: 'nowrap' }} onClick={testar} disabled={!!ocupado || !f.definida}>{ocupado === 'teste' ? 'Enviando…' : 'Enviar teste'}</button></div>
+          {!f.definida ? <span className="hint">Salve a senha de app antes de testar.</span> : null}
+        </div>
+        <button className="btn primary" disabled={!!ocupado}>{ocupado === 'salvar' ? 'Salvando…' : 'Salvar e-mail'}</button>
+      </div>
+    </form>
   );
 }

@@ -6,8 +6,9 @@ import { HttpError } from './erros.js';
 const CHAVE = 'tecnitium:banco:v1';
 
 const PADROES = {
-  usuario: { perfil: 'ATENDENTE', tecnicoId: null, atendenteId: null, ativo: true },
-  configuracao: { nomeEmpresa: 'Tecnitium Assistência Técnica', documento: null, telefone: null, whatsapp: null, endereco: null, prazoPadraoDias: 3, garantiaDias: 90, diasAbandono: 30, baseComissaoPeca: 'Venda', termos: null },
+  usuario: { perfil: 'ATENDENTE', tecnicoId: null, atendenteId: null, ativo: true, resetHash: null, resetExpira: null, resetTentativas: 0 },
+  configuracao: { nomeEmpresa: 'Tecnitium Assistência Técnica', documento: null, telefone: null, whatsapp: null, endereco: null, prazoPadraoDias: 3, garantiaDias: 90, diasAbandono: 30, baseComissaoPeca: 'Venda', termos: null,
+    smtpHost: 'smtp.gmail.com', smtpPorta: 465, smtpUsuario: null, smtpSenha: null, smtpRemetente: null },
   cliente: {}, aparelho: {}, atendente: { ativo: true },
   tecnico: { regime: 'Comissão', salario: 0, percPeca: 0, percServico: 0, ativo: true },
   peca: { unidade: 'un', quantidade: 0, minimo: 0, custo: 0, preco: 0, ativo: true },
@@ -31,7 +32,13 @@ function gravar() {
   catch { throw new HttpError(507, 'O espaço de armazenamento do navegador acabou. Exporte um backup e apague registros antigos.'); }
 }
 export const bancoVazio = () => !carregar().usuario.length;
-export const exportarBanco = () => JSON.parse(JSON.stringify(carregar()));
+// O backup nao leva a senha de app do e-mail (fica so neste navegador).
+export const exportarBanco = () => {
+  const b = JSON.parse(JSON.stringify(carregar()));
+  for (const c of b.configuracao || []) c.smtpSenha = null;
+  for (const u of b.usuario || []) { u.resetHash = null; u.resetExpira = null; }
+  return b;
+};
 export function importarBanco(dados) {
   if (!dados || typeof dados !== 'object' || !Array.isArray(dados.usuario) || !dados.usuario.length) throw new HttpError(422, 'Arquivo de backup inválido.');
   estado = { ...vazio(), ...dados };

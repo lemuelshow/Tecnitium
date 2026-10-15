@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
+import { api } from './lib/api.js';
 import { ToastProvider } from './components/ui.jsx';
 import Layout, { Marca } from './components/Layout.jsx';
 import Painel from './pages/Painel.jsx';
@@ -30,7 +31,26 @@ function Login() {
     e.preventDefault(); setErro(''); setEnviando(true);
     try { modo === 'cliente' ? await entrarCliente(doc, senhaCli) : await entrar(email, senha); } catch (ex) { setErro(ex.message); setEnviando(false); }
   }
-  const trocar = (m) => { setModo(m); setErro(''); };
+  const trocar = (m) => { setModo(m); setErro(''); setInfo(''); };
+  const [info, setInfo] = useState('');
+  const [etapa, setEtapa] = useState(1); // recuperacao: 1 = pedir codigo, 2 = codigo + nova senha
+  const [codigoRec, setCodigoRec] = useState('');
+  const [nova, setNova] = useState('');
+  const [nova2, setNova2] = useState('');
+  async function recuperar(e) {
+    e.preventDefault(); setErro(''); setEnviando(true);
+    try {
+      if (etapa === 1) {
+        const r = await api('/auth/esqueci', { method: 'POST', body: { email } });
+        setInfo(r.mensagem); setEtapa(2);
+      } else {
+        if (nova !== nova2) throw new Error('As duas senhas não são iguais.');
+        const r = await api('/auth/redefinir', { method: 'POST', body: { email, codigo: codigoRec, nova } });
+        setSenha(''); setCodigoRec(''); setNova(''); setNova2(''); setEtapa(1); setModo('equipe'); setInfo(r.mensagem);
+      }
+    } catch (ex) { setErro(ex.message); }
+    setEnviando(false);
+  }
   return (
     <div className="login">
       <section className="login-art">
@@ -41,40 +61,64 @@ function Login() {
         <span className="eyebrow" style={{ color: 'var(--nav-ink)' }}>Tecnitium · Assistência técnica</span>
       </section>
       <section className="login-box">
+        {modo === 'esqueci' ? (
+          <form onSubmit={recuperar}>
+            <span className="brand"><Marca /></span>
+            <h2 style={{ fontSize: 28 }}>Redefinir senha</h2>
+            {erro ? <div className="form-err" role="alert">{erro}</div> : null}
+            {info ? <div className="regra" role="status">{info}</div> : null}
+            <div className="f"><label htmlFor="email_rec">E-mail de acesso</label><input id="email_rec" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required disabled={etapa === 2} /></div>
+            {etapa === 2 ? (
+              <>
+                <div className="f"><label htmlFor="codigo_rec">Código recebido por e-mail</label><input id="codigo_rec" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={codigoRec} onChange={(e) => setCodigoRec(e.target.value)} placeholder="6 números" required style={{ fontFamily: 'var(--f-mono)', letterSpacing: '.3em', fontSize: 20 }} /></div>
+                <div className="f"><label htmlFor="nova_rec">Nova senha</label><input id="nova_rec" type="password" autoComplete="new-password" value={nova} onChange={(e) => setNova(e.target.value)} required /><span className="hint">Mínimo de 6 caracteres</span></div>
+                <div className="f"><label htmlFor="nova2_rec">Repita a nova senha</label><input id="nova2_rec" type="password" autoComplete="new-password" value={nova2} onChange={(e) => setNova2(e.target.value)} required /></div>
+              </>
+            ) : <p className="sub" style={{ margin: 0 }}>Vamos enviar um código de 6 números para o seu e-mail de acesso.</p>}
+            <button className="btn primary" style={{ justifyContent: 'center', padding: '10px 14px' }} disabled={enviando}>{enviando ? 'Aguarde…' : etapa === 1 ? 'Enviar código' : 'Salvar nova senha'}</button>
+            <div className="actions" style={{ justifyContent: 'space-between' }}>
+              <button type="button" className="link" onClick={() => { setEtapa(1); setErro(''); setInfo(''); setModo('equipe'); }}>← Voltar ao login</button>
+              {etapa === 2 ? <button type="button" className="link" disabled={enviando} onClick={() => { setEtapa(1); setInfo(''); setErro(''); }}>Pedir outro código</button> : null}
+            </div>
+          </form>
+        ) : (
         <form onSubmit={enviar}>
-          <span className="brand"><Marca /></span>
-          <div className="seg-login" role="tablist" aria-label="Tipo de acesso">
-            <button type="button" role="tab" aria-selected={modo === 'equipe'} className={modo === 'equipe' ? 'on' : ''} onClick={() => trocar('equipe')}>Equipe</button>
-            <button type="button" role="tab" aria-selected={modo === 'cliente'} className={modo === 'cliente' ? 'on' : ''} onClick={() => trocar('cliente')}>Sou cliente</button>
-          </div>
-          <h2 style={{ fontSize: 28 }}>{modo === 'cliente' ? 'Acompanhe seu aparelho' : 'Entrar no sistema'}</h2>
-          {erro ? <div className="form-err" role="alert">{erro}</div> : null}
-          {modo === 'cliente' ? (
-            <>
-              <div className="f"><label htmlFor="doc">CPF ou CNPJ</label><input id="doc" inputMode="numeric" value={doc} onChange={(e) => setDoc(e.target.value)} autoComplete="username" placeholder="Somente números" required /></div>
-              <div className="f"><label htmlFor="senhaCli">Senha</label><input id="senhaCli" type="password" inputMode="numeric" value={senhaCli} onChange={(e) => setSenhaCli(e.target.value)} autoComplete="current-password" required /><span className="hint">A senha também é o seu CPF ou CNPJ.</span></div>
-            </>
-          ) : (
-            <>
-              <div className="f"><label htmlFor="email">E-mail</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required /></div>
-              <div className="f"><label htmlFor="senha">Senha</label><input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" required /></div>
-            </>
-          )}
-          <button className="btn primary" style={{ justifyContent: 'center', padding: '10px 14px' }} disabled={enviando}>{enviando ? 'Entrando…' : modo === 'cliente' ? 'Ver minhas ordens' : 'Entrar'}</button>
-          <div className="demo-users">
+            <span className="brand"><Marca /></span>
+            <div className="seg-login" role="tablist" aria-label="Tipo de acesso">
+              <button type="button" role="tab" aria-selected={modo === 'equipe'} className={modo === 'equipe' ? 'on' : ''} onClick={() => trocar('equipe')}>Equipe</button>
+              <button type="button" role="tab" aria-selected={modo === 'cliente'} className={modo === 'cliente' ? 'on' : ''} onClick={() => trocar('cliente')}>Sou cliente</button>
+            </div>
+            <h2 style={{ fontSize: 28 }}>{modo === 'cliente' ? 'Acompanhe seu aparelho' : 'Entrar no sistema'}</h2>
+            {erro ? <div className="form-err" role="alert">{erro}</div> : null}
+            {info && modo === 'equipe' ? <div className="regra" role="status">{info}</div> : null}
             {modo === 'cliente' ? (
-              <>Use o CPF ou CNPJ do seu cadastro como login e como senha.<br /><br />Exemplo para testar: <code>12345678910</code> no login e na senha (Ana Carolina Prado).</>
+              <>
+                <div className="f"><label htmlFor="doc">CPF ou CNPJ</label><input id="doc" inputMode="numeric" value={doc} onChange={(e) => setDoc(e.target.value)} autoComplete="username" placeholder="Somente números" required /></div>
+                <div className="f"><label htmlFor="senhaCli">Senha</label><input id="senhaCli" type="password" inputMode="numeric" value={senhaCli} onChange={(e) => setSenhaCli(e.target.value)} autoComplete="current-password" required /><span className="hint">A senha também é o seu CPF ou CNPJ.</span></div>
+              </>
             ) : (
               <>
-                Versão de demonstração: os dados ficam salvos neste navegador e já vêm com exemplos.<br /><br />
-                Acessos (senha <code>tecnitium</code>):<br />
-                <code>admin@tecnitium.com.br</code> · administrador<br />
-                <code>atendimento@tecnitium.com.br</code> · atendente<br />
-                <code>tecnico@tecnitium.com.br</code> · técnico
+                <div className="f"><label htmlFor="email">E-mail</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required /></div>
+                <div className="f"><label htmlFor="senha">Senha</label><input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" required /></div>
               </>
             )}
-          </div>
-        </form>
+            <button className="btn primary" style={{ justifyContent: 'center', padding: '10px 14px' }} disabled={enviando}>{enviando ? 'Entrando…' : modo === 'cliente' ? 'Ver minhas ordens' : 'Entrar'}</button>
+            {modo === 'equipe' ? <button type="button" className="link" style={{ alignSelf: 'center' }} onClick={() => { setModo('esqueci'); setEtapa(1); setErro(''); setInfo(''); }}>Esqueci a senha</button> : null}
+            <div className="demo-users">
+              {modo === 'cliente' ? (
+                <>Use o CPF ou CNPJ do seu cadastro como login e como senha.<br /><br />Exemplo para testar: <code>12345678910</code> no login e na senha (Ana Carolina Prado).</>
+              ) : (
+                <>
+                  Versão de demonstração: os dados ficam salvos neste navegador e já vêm com exemplos.<br /><br />
+                  Acessos (senha <code>tecnitium</code>):<br />
+                  <code>admin@tecnitium.com.br</code> · administrador<br />
+                  <code>atendimento@tecnitium.com.br</code> · atendente<br />
+                  <code>tecnico@tecnitium.com.br</code> · técnico
+                </>
+              )}
+            </div>
+          </form>
+        )}
       </section>
     </div>
   );
